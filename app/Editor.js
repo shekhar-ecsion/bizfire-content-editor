@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useRef } from 'react';
+import Link from 'next/link';
 import Handlebars from 'handlebars';
 import ImageCropperModal from './ImageCropperModal';
 
@@ -302,6 +303,9 @@ function GenericField({ name, config, value, onChange }) {
 
 // 100% Generic Studio Editor Component
 export default function Editor({
+  mode = 'playground',
+  workspace = null,
+  pageData = null,
   availableThemes = [],
   initialTheme,
   initialThemeCss = '',
@@ -313,9 +317,36 @@ export default function Editor({
   const [themeCss, setThemeCss] = useState(initialThemeCss);
   const [components, setComponents] = useState(initialComponents);
   const [variants, setVariants] = useState(initialVariants);
-  const [page, setPage] = useState(() => initialPage.length ? initialPage : []);
-  const [selectedId, setSelectedId] = useState(() => initialPage[0]?.instanceId || '');
-  const [activeVariantId, setActiveVariantId] = useState(() => initialVariants[0]?.id || '');
+
+  // Initialize page ensuring all sections have temporary runtime instanceIds
+  const [page, setPage] = useState(() => {
+    const src = (pageData?.sections && pageData.sections.length > 0) ? pageData.sections : initialPage;
+    return (src || []).map((item, idx) => ({
+      ...item,
+      instanceId: item.instanceId || `inst_${Date.now()}_${idx + 1}`
+    }));
+  });
+
+  const [selectedId, setSelectedId] = useState(() => {
+    const src = (pageData?.sections && pageData.sections.length > 0) ? pageData.sections : initialPage;
+    return src[0]?.instanceId || '';
+  });
+
+  const [activeVariantId, setActiveVariantId] = useState(() => {
+    return pageData?.templateId || initialVariants[0]?.id || '';
+  });
+
+  // Workspace-specific editing state
+  const [pageTitle, setPageTitle] = useState(() => pageData?.title || 'Untitled Page');
+  const [pageSlug, setPageSlug] = useState(() => pageData?.slug || '');
+  const [lastSaved, setLastSaved] = useState(() => pageData?.lastSavedAt || null);
+  const [lastPublished, setLastPublished] = useState(() => pageData?.lastPublishedAt || null);
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(null);
+  const [publishStatus, setPublishStatus] = useState(null);
+
   const [isLoadingTheme, setIsLoadingTheme] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
 
@@ -323,6 +354,81 @@ export default function Editor({
 
   const selected = page.find(x => x.instanceId === selectedId) || page[0];
   const selectedDef = selected ? library[selected.type] : null;
+
+  async function handleSave() {
+    if (mode !== 'workspace' || !workspace || !pageData) return;
+    setIsSaving(true);
+    setSaveStatus(null);
+    try {
+      const res = await fetch('/api/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: workspace.workspaceId,
+          postId: pageData.postId,
+          title: pageTitle,
+          slug: pageSlug,
+          templateId: activeVariantId || pageData.templateId,
+          sections: page
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to save');
+      }
+
+      const data = await res.json();
+      setLastSaved(data.savedAt);
+      setIsDirty(false);
+      setSaveStatus({ type: 'success', text: `Saved at ${new Date(data.savedAt).toLocaleTimeString()}` });
+      setTimeout(() => setSaveStatus(null), 4000);
+    } catch (err) {
+      setSaveStatus({ type: 'error', text: err.message });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handlePublish() {
+    if (mode !== 'workspace' || !workspace || !pageData) return;
+    setIsPublishing(true);
+    setPublishStatus(null);
+    try {
+      const res = await fetch('/api/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: workspace.workspaceId,
+          postId: pageData.postId,
+          title: pageTitle,
+          slug: pageSlug,
+          templateId: activeVariantId || pageData.templateId,
+          sections: page
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to publish');
+      }
+
+      const data = await res.json();
+      setLastPublished(data.publishedAt);
+      setLastSaved(data.publishedAt);
+      setIsDirty(false);
+      setPublishStatus({
+        type: 'success',
+        text: 'Published to WordPress!',
+        liveUrl: data.liveUrl
+      });
+      setTimeout(() => setPublishStatus(null), 6000);
+    } catch (err) {
+      setPublishStatus({ type: 'error', text: err.message });
+    } finally {
+      setIsPublishing(false);
+    }
+  }
 
   async function switchTheme(newThemeId) {
     if (newThemeId === theme?.id) return;
@@ -347,6 +453,7 @@ export default function Editor({
   }
 
   function updateField(key, value) {
+    setIsDirty(true);
     setPage(p => p.map(x => x.instanceId === selectedId ? {
       ...x,
       content: { ...x.content, [key]: value }
@@ -354,6 +461,7 @@ export default function Editor({
   }
 
   function moveSection(id, direction) {
+    setIsDirty(true);
     setPage(p => {
       const arr = [...p];
       const i = arr.findIndex(x => x.instanceId === id);
@@ -365,6 +473,7 @@ export default function Editor({
   }
 
   function removeSection(id) {
+    setIsDirty(true);
     setPage(p => {
       const next = p.filter(x => x.instanceId !== id);
       if (id === selectedId) {
@@ -375,6 +484,7 @@ export default function Editor({
   }
 
   function addComponent(type) {
+    setIsDirty(true);
     const compDef = library[type];
     if (!compDef) return;
     const instanceId = generateUniqueId('inst');
@@ -383,8 +493,9 @@ export default function Editor({
     setSelectedId(instanceId);
   }
 
-  // Load a complete Page Variant skeleton
+  // Load a complete Page Template skeleton
   function loadVariant(variantId) {
+    setIsDirty(true);
     const variant = variants.find(v => v.id === variantId);
     if (!variant) return;
     setActiveVariantId(variantId);
@@ -476,55 +587,136 @@ ${renderedSections}
   return (
     <main className="editor-shell">
       <header className="app-header">
-        <div className="brand-wrap">
-          <span className="brand-mark">B</span>
-          <div className="brand-title">
-            <strong>Bizfire Theme Playground</strong>
-            <span>Canonical Git Theme Library Engine</span>
-          </div>
-        </div>
-
-        <div className="header-actions">
-          {availableThemes.length > 1 ? (
-            <div className="theme-switcher-box">
-              <label htmlFor="theme-select" className="theme-switcher-label">ACTIVE THEME:</label>
-              <select
-                id="theme-select"
-                className="theme-select-input"
-                value={theme?.id}
-                onChange={e => switchTheme(e.target.value)}
-                disabled={isLoadingTheme}
-              >
-                {availableThemes.map(t => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} (v{t.version || '1.0'})
-                  </option>
-                ))}
-              </select>
+        {mode === 'workspace' ? (
+          <>
+            <div className="brand-wrap">
+              <Link href={`/editor/${workspace?.workspaceId}`} className="ws-back-btn" title="Back to workspace pages">
+                ← Pages
+              </Link>
+              <div className="ws-header-page-info">
+                <div className="ws-header-title-row">
+                  <input
+                    type="text"
+                    className="ws-header-title-input"
+                    value={pageTitle}
+                    onChange={e => { setPageTitle(e.target.value); setIsDirty(true); }}
+                    title="Click to edit page title"
+                  />
+                  <span className="post-id-tag">#{pageData?.postId}</span>
+                </div>
+                <div className="ws-header-sub-row">
+                  <span className="ws-header-client">{workspace?.clientName}</span>
+                  <span className="ws-dot-separator">·</span>
+                  <code className="ws-header-slug">/{pageSlug}</code>
+                </div>
+              </div>
             </div>
-          ) : (
-            <span className="theme-pill-badge">
-              Theme: {theme?.name || 'Trades Modern'} (v{theme?.version || '1.0'})
-            </span>
-          )}
 
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={saveAsPageVariant}
-            title="Export reusable layout skeleton without customer content"
-          >
-            Save as Variant ⤓
-          </button>
-          <button
-            type="button"
-            className={`export-button ${exportSuccess ? 'is-success' : ''}`}
-            onClick={exportHtml}
-            title="Download standalone, ultra-optimized HTML5 page"
-          >
-            {exportSuccess ? '✓ Exported page.html' : 'Export as HTML ⤓'}
-          </button>
-        </div>
+            <div className="header-actions">
+              {isDirty ? (
+                <span className="status-badge badge-changes">● Unsaved</span>
+              ) : (
+                <span className="status-badge badge-published">✓ Saved</span>
+              )}
+
+              {saveStatus && (
+                <span className={`save-status-msg ${saveStatus.type}`}>
+                  {saveStatus.text}
+                </span>
+              )}
+
+              {publishStatus && (
+                <span className={`save-status-msg ${publishStatus.type}`}>
+                  {publishStatus.text}
+                  {publishStatus.liveUrl && (
+                    <a
+                      href={publishStatus.liveUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ws-live-link"
+                    >
+                      View Live ↗
+                    </a>
+                  )}
+                </span>
+              )}
+
+              <span className="theme-pill-badge">
+                Theme: {theme?.name || 'Cloned Theme'}
+              </span>
+
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleSave}
+                disabled={isSaving}
+              >
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
+
+              <button
+                type="button"
+                className="btn-publish"
+                onClick={handlePublish}
+                disabled={isPublishing}
+              >
+                {isPublishing ? 'Publishing...' : 'Publish to WordPress'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="brand-wrap">
+              <span className="brand-mark">B</span>
+              <div className="brand-title">
+                <strong>Bizfire Theme Playground</strong>
+                <span>Canonical Git Theme Library Engine</span>
+              </div>
+            </div>
+
+            <div className="header-actions">
+              {availableThemes.length > 1 ? (
+                <div className="theme-switcher-box">
+                  <label htmlFor="theme-select" className="theme-switcher-label">ACTIVE THEME:</label>
+                  <select
+                    id="theme-select"
+                    className="theme-select-input"
+                    value={theme?.id}
+                    onChange={e => switchTheme(e.target.value)}
+                    disabled={isLoadingTheme}
+                  >
+                    {availableThemes.map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} (v{t.version || '1.0'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <span className="theme-pill-badge">
+                  Theme: {theme?.name || 'Trades Modern'} (v{theme?.version || '1.0'})
+                </span>
+              )}
+
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={saveAsPageVariant}
+                title="Export reusable layout skeleton without customer content"
+              >
+                Save as Variant ⤓
+              </button>
+              <button
+                type="button"
+                className={`export-button ${exportSuccess ? 'is-success' : ''}`}
+                onClick={exportHtml}
+                title="Download standalone, ultra-optimized HTML5 page"
+              >
+                {exportSuccess ? '✓ Exported page.html' : 'Export as HTML ⤓'}
+              </button>
+            </div>
+          </>
+        )}
       </header>
 
       <div className="page-editor-grid">
@@ -652,17 +844,33 @@ ${renderedSections}
         <section className="preview-panel">
           <div className="preview-toolbar">
             <div>
-              <strong>Live Page Preview</strong>
-              <span>pure Handlebars + active theme style.css</span>
+              <strong>{mode === 'workspace' ? 'Workspace Page Preview' : 'Live Page Preview'}</strong>
+              <span>
+                {mode === 'workspace'
+                  ? `Rendered with ${theme?.name || 'cloned theme'} style.css`
+                  : 'pure Handlebars + active theme style.css'}
+              </span>
             </div>
-            <button
-              type="button"
-              className={`export-button export-button--toolbar ${exportSuccess ? 'is-success' : ''}`}
-              onClick={exportHtml}
-              title="Download standalone HTML file"
-            >
-              {exportSuccess ? '✓ Exported!' : 'Export HTML ⤓'}
-            </button>
+            {mode === 'workspace' ? (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handlePublish}
+                disabled={isPublishing}
+                title="Publish changes to WordPress"
+              >
+                {isPublishing ? 'Publishing...' : 'Quick Publish'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={`export-button export-button--toolbar ${exportSuccess ? 'is-success' : ''}`}
+                onClick={exportHtml}
+                title="Download standalone HTML file"
+              >
+                {exportSuccess ? '✓ Exported!' : 'Export HTML ⤓'}
+              </button>
+            )}
           </div>
 
           <div className="preview-canvas page-preview">
@@ -671,6 +879,13 @@ ${renderedSections}
               <link rel="stylesheet" href={theme.fontUrl} />
             )}
             <style dangerouslySetInnerHTML={{ __html: themeCss }} />
+
+            {mode === 'workspace' && (
+              <div className="wp-preview-shell-banner top">
+                <span>WordPress Theme Header & Navigation</span>
+                <small>Provided by client's active WordPress theme</small>
+              </div>
+            )}
 
             {page.map(item => {
               const def = library[item.type];
@@ -687,6 +902,13 @@ ${renderedSections}
                 />
               );
             })}
+
+            {mode === 'workspace' && (
+              <div className="wp-preview-shell-banner bottom">
+                <span>WordPress Theme Footer & Copyright</span>
+                <small>Provided by client's active WordPress theme</small>
+              </div>
+            )}
           </div>
         </section>
       </div>

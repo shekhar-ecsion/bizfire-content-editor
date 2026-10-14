@@ -1,0 +1,33 @@
+{
+  "postId": 102,
+  "slug": "emergency-heating",
+  "title": "24/7 Emergency Heating Repair Princeton",
+  "templateId": "service-emergency",
+  "lastSavedAt": "2026-10-14T11:30:00.000Z",
+  "lastPublishedAt": null,
+  "sections": [
+    {
+      "type": "hero-split",
+      "content": {
+        "eyebrow": "URGENT FURNACE & BOILER DISPATCH",
+        "title": "Emergency Heating & Furnace Repair in Princeton",
+        "subtitle": "Don't freeze tonight. Certified HVAC heating techs available 24/7 across Mercer County.",
+        "buttonText": "Call Dispatch: (609) 555-0198",
+        "buttonUrl": "tel:6095550198",
+        "image": {
+          "src": "https://images.unsplash.com/photo-1581094288338-2314dddb7ece?auto=format&fit=crop&w=1400&q=80",
+          "alt": "Heating technician repairing furnace"
+        }
+      }
+    },
+    {
+      "type": "cta-banner",
+      "content": {
+        "title": "Furnace Blowing Cold Air?",
+        "subtitle": "Call now for rapid response and emergency diagnostics.",
+        "buttonText": "Call Now",
+        "buttonUrl": "tel:6095550198"
+      }
+    }
+  ]
+}

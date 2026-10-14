@@ -1,0 +1,13 @@
+{
+  "id": "service-standard",
+  "name": "Standard Service Layout",
+  "pageType": "service",
+  "description": "Standard conversion layout: Split Hero, Benefits, Testimonials, FAQ, and CTA Banner.",
+  "components": [
+    { "type": "hero-split" },
+    { "type": "benefits-grid" },
+    { "type": "testimonials-grid" },
+    { "type": "faq-accordion" },
+    { "type": "cta-banner" }
+  ]
+}

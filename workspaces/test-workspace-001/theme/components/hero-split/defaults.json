@@ -1,0 +1,11 @@
+{
+  "eyebrow": "24/7 EMERGENCY DISPATCH",
+  "title": "AC Repair & Cooling Service in Princeton",
+  "subtitle": "Fast, honest technicians on call. Flat-rate pricing with no surprise overtime fees.",
+  "buttonText": "Call (609) 555-0198",
+  "buttonUrl": "tel:6095550198",
+  "image": {
+    "src": "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=1400&q=80",
+    "alt": "HVAC technician servicing air conditioner"
+  }
+}

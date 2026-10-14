@@ -1,0 +1,17 @@
+<section class="hero-section">
+  <div class="hero-section__inner">
+    <div class="hero-section__content">
+      {{#if eyebrow}}<p class="hero-section__eyebrow">{{eyebrow}}</p>{{/if}}
+      <h1>{{title}}</h1>
+      {{#if subtitle}}<p class="hero-section__subtitle">{{subtitle}}</p>{{/if}}
+      {{#if buttonText}}
+      <div class="hero-section__actions">
+        <a href="{{buttonUrl}}" class="btn-primary">{{buttonText}}</a>
+      </div>
+      {{/if}}
+    </div>
+    {{#if image.src}}
+    <img class="hero-section__image" src="{{image.src}}" alt="{{image.alt}}" />
+    {{/if}}
+  </div>
+</section>

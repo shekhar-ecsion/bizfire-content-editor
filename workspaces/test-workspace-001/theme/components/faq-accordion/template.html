@@ -1,0 +1,15 @@
+<section class="faq-section">
+  <div class="faq-section__heading">
+    {{#if eyebrow}}<p class="faq-section__eyebrow">{{eyebrow}}</p>{{/if}}
+    <h2>{{title}}</h2>
+    {{#if subtitle}}<p class="faq-section__subtitle">{{subtitle}}</p>{{/if}}
+  </div>
+  <div class="faq-list">
+    {{#each items}}
+    <details class="faq-item" open>
+      <summary>{{question}}</summary>
+      <p>{{answer}}</p>
+    </details>
+    {{/each}}
+  </div>
+</section>
