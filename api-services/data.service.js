@@ -196,6 +196,49 @@ class DataService {
         );
       }
       const ws = rows[0];
+
+      // Resolve the API key: prefer data_json.apiKey/api_key, then fall back
+      // to user_product_configured.data_json.wpi_api_key (matched by site_url)
+      // This handles workspaces where data_json is null.
+      let resolvedApiKey =
+        ws?.data_json?.apiKey ||
+        ws?.data_json?.api_key ||
+        ws?.data_json?.wpi_api_key ||
+        "";
+
+      if (!resolvedApiKey && ws?.site_url) {
+        try {
+          const wsGuid = ws?.workspace_guid;
+          const productRows = wsGuid
+            ? await this.selectRows(
+                "user_product_configured",
+                "row_guid,data_json",
+                [{ Operand: "eq", UIKey: "workspace_guid", Value: wsGuid }],
+              )
+            : [];
+          // Find first record whose site_url matches and has a wpi_api_key
+          const siteBase = ws.site_url.replace(/\/$/, "");
+          const matched = productRows.find((r) => {
+            const rUrl = (r?.data_json?.site_url || "").replace(/\/$/, "");
+            return (
+              rUrl === siteBase &&
+              (r?.data_json?.wpi_api_key ||
+                r?.data_json?.apiKey ||
+                r?.data_json?.api_key)
+            );
+          });
+          if (matched) {
+            resolvedApiKey =
+              matched.data_json.wpi_api_key ||
+              matched.data_json.apiKey ||
+              matched.data_json.api_key ||
+              "";
+          }
+        } catch (lookupErr) {
+          console.warn("API key fallback lookup failed:", lookupErr.message);
+        }
+      }
+
       return {
         workspaceId: ws?.row_guid || ws?.workspace_guid || workspaceId,
         clientName: ws?.workspace_name || "Princeton Comfort HVAC",
@@ -203,7 +246,7 @@ class DataService {
         wpSiteUrl: ws?.site_url || process.env.NEXT_PUBLIC_WORDPRESS_URL || "",
         wpUser: ws?.data_json?.wpUser || "",
         wpAppPassword: ws?.data_json?.wpAppPassword || "",
-        apiKey: ws?.data_json?.apiKey || ws?.data_json?.api_key || "",
+        apiKey: resolvedApiKey,
       };
     } catch (err) {
       console.warn(
@@ -217,6 +260,7 @@ class DataService {
         wpSiteUrl: process.env.NEXT_PUBLIC_WORDPRESS_URL || "",
         wpUser: "",
         wpAppPassword: "",
+        apiKey: "",
       };
     }
   }
