@@ -31,7 +31,11 @@ export async function POST(request) {
       });
     }
 
-    const result = await DataSource.publishPage(workspaceId, postId);
+    const result = await DataSource.publishPage(workspaceId, postId, {
+      apiKey: body.apiKey || request.headers.get("x-api-key") || request.headers.get("X-API-Key"),
+      slug,
+      title,
+    });
 
     return NextResponse.json({
       success: true,
@@ -40,7 +44,8 @@ export async function POST(request) {
       liveUrl: result?.liveUrl || "",
       compiledHtml: result?.compiledHtml || "",
       errors: result?.errors || [],
-      wpSyncStatus: result?.wpSyncStatus || "synced"
+      wpSyncStatus: result?.wpSyncStatus || "synced",
+      wpSyncError: result?.wpSyncError || null,
     });
   } catch (error) {
     console.error('API /api/publish error:', error);

@@ -183,20 +183,27 @@ class DataService {
    */
   async getWorkspace(workspaceId) {
     try {
-      const rows = await this.selectRows(
+      let rows = await this.selectRows(
         "user_workspaces",
-        "row_guid, workspace_guid,workspace_name,site_url,data_json",
+        "row_guid,workspace_guid,workspace_name,site_url,data_json",
         [{ Operand: "eq", UIKey: "row_guid", Value: workspaceId }],
       );
-      console.log(rows);
+      if (!rows.length) {
+        rows = await this.selectRows(
+          "user_workspaces",
+          "row_guid,workspace_guid,workspace_name,site_url,data_json",
+          [{ Operand: "eq", UIKey: "workspace_guid", Value: workspaceId }],
+        );
+      }
       const ws = rows[0];
       return {
-        workspaceId: ws?.row_guid || workspaceId,
+        workspaceId: ws?.row_guid || ws?.workspace_guid || workspaceId,
         clientName: ws?.workspace_name || "Princeton Comfort HVAC",
         themeId: ws?.data_json?.themeId || "trades-modern",
         wpSiteUrl: ws?.site_url || process.env.NEXT_PUBLIC_WORDPRESS_URL || "",
         wpUser: ws?.data_json?.wpUser || "",
         wpAppPassword: ws?.data_json?.wpAppPassword || "",
+        apiKey: ws?.data_json?.apiKey || ws?.data_json?.api_key || "",
       };
     } catch (err) {
       console.warn(
