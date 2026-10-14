@@ -15,9 +15,9 @@ function generateUniqueId(prefix = 'id') {
 // Ensure every item in array has a stable unique _id
 function sanitizeArrayItems(items) {
   if (!Array.isArray(items)) return [];
-  return items.map(item => {
+  return items.map((item, idx) => {
     if (typeof item === 'object' && item !== null && !item._id) {
-      return { _id: generateUniqueId('itm'), ...item };
+      return { _id: item.id || `itm_${idx + 1}`, ...item };
     }
     return item;
   });
@@ -321,18 +321,19 @@ export default function Editor({
   const [components, setComponents] = useState(initialComponents);
   const [pageTemplates, setPageTemplates] = useState(templates);
 
-  // Initialize page ensuring all sections have temporary runtime instanceIds
+  // Initialize page ensuring all sections have stable runtime instanceIds
   const [page, setPage] = useState(() => {
     const src = (pageData?.sections && pageData.sections.length > 0) ? pageData.sections : initialPage;
     return (src || []).map((item, idx) => ({
       ...item,
-      instanceId: item.instanceId || `inst_${Date.now()}_${idx + 1}`
+      instanceId: item.instanceId || item.id || `inst_sec_${idx + 1}`
     }));
   });
 
   const [selectedId, setSelectedId] = useState(() => {
     const src = (pageData?.sections && pageData.sections.length > 0) ? pageData.sections : initialPage;
-    return src[0]?.instanceId || '';
+    const first = src?.[0];
+    return first?.instanceId || first?.id || (first ? 'inst_sec_1' : '');
   });
 
   const [activeTemplateId, setActiveTemplateId] = useState(() => {
@@ -663,11 +664,19 @@ ${renderedSections}
                   ● Draft
                 </span>
               ) : isDirty ? (
-                <span className="status-badge badge-changes" title={`Published at ${new Date(lastPublished).toLocaleTimeString()}, with unsaved edits`}>
+                <span
+                  suppressHydrationWarning
+                  className="status-badge badge-changes"
+                  title={`Published at ${new Date(lastPublished).toLocaleTimeString()}, with unsaved edits`}
+                >
                   ● Unpublished Changes
                 </span>
               ) : (
-                <span className="status-badge badge-published" title={`Published at ${new Date(lastPublished).toLocaleTimeString()}`}>
+                <span
+                  suppressHydrationWarning
+                  className="status-badge badge-published"
+                  title={`Published at ${new Date(lastPublished).toLocaleTimeString()}`}
+                >
                   ✓ Published
                 </span>
               )}
