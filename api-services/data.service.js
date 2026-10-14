@@ -178,91 +178,96 @@ class DataService {
   // =========================================================================
 
   /**
-   * Fetch Workspace metadata
-   * @param {string} workspaceId Workspace GUID
+   * Fetch Workspace metadata.
+   *
+   * Mirrors the SEO app's workspaceConfig.js pattern exactly:
+   *   1. Query user_product_configured by user_workspace_guid + PRODUCT_GUID + status=configured
+   *   2. Fallback: seo_projects.row_guid (legacy projects)
+   *
+   * @param {string} workspaceId  user_workspaces.row_guid (= user_workspace_guid in product table)
    */
   async getWorkspace(workspaceId) {
+    const PRODUCT_GUID = process.env.NEXT_PUBLIC_PRODUCT_GUID || "";
+
+    // ── Primary: user_product_configured (single authoritative row) ───────
     try {
-      let rows = await this.selectRows(
-        "user_workspaces",
-        "row_guid,workspace_guid,workspace_name,site_url,data_json",
-        [{ Operand: "eq", UIKey: "row_guid", Value: workspaceId }],
+      const filters = [
+        { Operand: "eq", UIKey: "user_workspace_guid", Value: workspaceId },
+        { Operand: "eq", UIKey: "status",              Value: "configured"  },
+      ];
+      if (PRODUCT_GUID) {
+        filters.push({ Operand: "eq", UIKey: "product_guid", Value: PRODUCT_GUID });
+      }
+
+      const rows = await this.selectRows(
+        "user_product_configured",
+        "row_guid,url,data_json,status,user_workspace_guid,product_guid",
+        filters,
+        [{ UIKey: "id", Direction: "DESC" }],
+        "1",
+        "1",
       );
-      if (!rows.length) {
-        rows = await this.selectRows(
-          "user_workspaces",
-          "row_guid,workspace_guid,workspace_name,site_url,data_json",
-          [{ Operand: "eq", UIKey: "workspace_guid", Value: workspaceId }],
-        );
+
+      const row = rows[0];
+      if (row) {
+        const dj = (typeof row.data_json === "string"
+          ? JSON.parse(row.data_json)
+          : row.data_json) || {};
+
+        const siteUrl = (row.url || dj.site_url || dj.domain || dj.url || "").trim();
+        const apiKey  = (row.wpi_api_key || dj.wpi_api_key || dj.apiKey || dj.api_key || dj.key || "").trim();
+        const name    = (row.project_name || dj.project_name || dj.projectName || dj.name || "WordPress Site").trim();
+
+        return {
+          workspaceId,
+          clientName:    name,
+          themeId:       dj.themeId || "trades-modern",
+          wpSiteUrl:     siteUrl || process.env.NEXT_PUBLIC_WORDPRESS_URL || "",
+          wpUser:        dj.wpUser        || "",
+          wpAppPassword: dj.wpAppPassword || "",
+          apiKey,
+        };
       }
-      const ws = rows[0];
-
-      // Resolve the API key: prefer data_json.apiKey/api_key, then fall back
-      // to user_product_configured.data_json.wpi_api_key (matched by site_url)
-      // This handles workspaces where data_json is null.
-      let resolvedApiKey =
-        ws?.data_json?.apiKey ||
-        ws?.data_json?.api_key ||
-        ws?.data_json?.wpi_api_key ||
-        "";
-
-      if (!resolvedApiKey && ws?.site_url) {
-        try {
-          const wsGuid = ws?.workspace_guid;
-          const productRows = wsGuid
-            ? await this.selectRows(
-                "user_product_configured",
-                "row_guid,data_json",
-                [{ Operand: "eq", UIKey: "workspace_guid", Value: wsGuid }],
-              )
-            : [];
-          // Find first record whose site_url matches and has a wpi_api_key
-          const siteBase = ws.site_url.replace(/\/$/, "");
-          const matched = productRows.find((r) => {
-            const rUrl = (r?.data_json?.site_url || "").replace(/\/$/, "");
-            return (
-              rUrl === siteBase &&
-              (r?.data_json?.wpi_api_key ||
-                r?.data_json?.apiKey ||
-                r?.data_json?.api_key)
-            );
-          });
-          if (matched) {
-            resolvedApiKey =
-              matched.data_json.wpi_api_key ||
-              matched.data_json.apiKey ||
-              matched.data_json.api_key ||
-              "";
-          }
-        } catch (lookupErr) {
-          console.warn("API key fallback lookup failed:", lookupErr.message);
-        }
-      }
-
-      return {
-        workspaceId: ws?.row_guid || ws?.workspace_guid || workspaceId,
-        clientName: ws?.workspace_name || "Princeton Comfort HVAC",
-        themeId: ws?.data_json?.themeId || "trades-modern",
-        wpSiteUrl: ws?.site_url || process.env.NEXT_PUBLIC_WORDPRESS_URL || "",
-        wpUser: ws?.data_json?.wpUser || "",
-        wpAppPassword: ws?.data_json?.wpAppPassword || "",
-        apiKey: resolvedApiKey,
-      };
     } catch (err) {
-      console.warn(
-        "Could not fetch workspace from user_workspaces, using default context:",
-        err.message,
-      );
-      return {
-        workspaceId,
-        clientName: "Princeton Comfort HVAC",
-        themeId: "trades-modern",
-        wpSiteUrl: process.env.NEXT_PUBLIC_WORDPRESS_URL || "",
-        wpUser: "",
-        wpAppPassword: "",
-        apiKey: "",
-      };
+      console.warn("getWorkspace: user_product_configured lookup failed:", err.message);
     }
+
+    // ── Fallback: seo_projects by row_guid (legacy path) ─────────────────
+    try {
+      const rows = await this.selectRows(
+        "seo_projects",
+        "row_guid,project_name,domain,api_key",
+        [{ Operand: "eq", UIKey: "row_guid", Value: workspaceId }],
+        [{ UIKey: "row_guid", Direction: "ASC" }],
+        "1",
+        "1",
+      );
+      const proj = rows[0];
+      if (proj) {
+        return {
+          workspaceId,
+          clientName:    (proj.project_name || "WordPress Site").trim(),
+          themeId:       "trades-modern",
+          wpSiteUrl:     (proj.domain || "").trim(),
+          wpUser:        "",
+          wpAppPassword: "",
+          apiKey:        (proj.api_key || "").trim(),
+        };
+      }
+    } catch (err) {
+      console.warn("getWorkspace: seo_projects fallback failed:", err.message);
+    }
+
+    // ── Last resort: empty shell ──────────────────────────────────────────
+    return {
+      workspaceId,
+      clientName:    "WordPress Site",
+      themeId:       "trades-modern",
+      wpSiteUrl:     process.env.NEXT_PUBLIC_WORDPRESS_URL || "",
+      wpUser:        "",
+      wpAppPassword: "",
+      apiKey:        "",
+    };
   }
 
   /**
