@@ -217,7 +217,7 @@ class DataService {
         const siteUrl = (row.url || dj.site_url || dj.domain || dj.url || "").trim();
         const apiKey  = (row.wpi_api_key || dj.wpi_api_key || dj.apiKey || dj.api_key || dj.key || "").trim();
         const name    = (row.project_name || dj.project_name || dj.projectName || dj.name || "WordPress Site").trim();
-
+          console.log(row, "row")
         return {
           workspaceId,
           clientName:    name,
