@@ -84,7 +84,7 @@ class DataService {
     filters = [],
     orderBy = [{ UIKey: "row_guid", Direction: "ASC" }],
     pageNumber = "1",
-    pageSize = "100"
+    pageSize = "100",
   ) {
     try {
       const response = await this.secureSelect({
@@ -185,12 +185,13 @@ class DataService {
     try {
       const rows = await this.selectRows(
         "user_workspaces",
-        "workspace_guid,workspace_name,site_url,data_json",
-        [{ Operand: "eq", UIKey: "workspace_guid", Value: workspaceId }]
+        "row_guid, workspace_guid,workspace_name,site_url,data_json",
+        [{ Operand: "eq", UIKey: "row_guid", Value: workspaceId }],
       );
+      console.log(rows);
       const ws = rows[0];
       return {
-        workspaceId: ws?.workspace_guid || workspaceId,
+        workspaceId: ws?.row_guid || workspaceId,
         clientName: ws?.workspace_name || "Princeton Comfort HVAC",
         themeId: ws?.data_json?.themeId || "trades-modern",
         wpSiteUrl: ws?.site_url || process.env.NEXT_PUBLIC_WORDPRESS_URL || "",
@@ -198,7 +199,10 @@ class DataService {
         wpAppPassword: ws?.data_json?.wpAppPassword || "",
       };
     } catch (err) {
-      console.warn("Could not fetch workspace from user_workspaces, using default context:", err.message);
+      console.warn(
+        "Could not fetch workspace from user_workspaces, using default context:",
+        err.message,
+      );
       return {
         workspaceId,
         clientName: "Princeton Comfort HVAC",
@@ -223,7 +227,7 @@ class DataService {
         [
           { Operand: "eq", UIKey: "workspace_guid", Value: workspaceId },
           { Operand: "eq", UIKey: "is_deleted", Value: "false" },
-        ]
+        ],
       );
       let themeRow = themeRows[0];
 
@@ -235,13 +239,15 @@ class DataService {
           [
             { Operand: "eq", UIKey: "is_master", Value: "true" },
             { Operand: "eq", UIKey: "is_deleted", Value: "false" },
-          ]
+          ],
         );
         themeRow = themeRows[0];
       }
 
       if (!themeRow) {
-        throw new Error(`No theme found for workspace ${workspaceId} or master themes.`);
+        throw new Error(
+          `No theme found for workspace ${workspaceId} or master themes.`,
+        );
       }
 
       // 2. Fetch components for this theme
@@ -249,7 +255,7 @@ class DataService {
         "theme_components",
         "row_guid,component_key,name,category,schema_json,template_html,defaults_json,display_order",
         [{ Operand: "eq", UIKey: "is_deleted", Value: "false" }],
-        [{ UIKey: "display_order", Direction: "ASC" }]
+        [{ UIKey: "display_order", Direction: "ASC" }],
       );
 
       // 3. Fetch page variants (templates) for this theme
@@ -257,7 +263,7 @@ class DataService {
         "theme_page_variants",
         "row_guid,variant_key,name,description,layout_json,display_order",
         [{ Operand: "eq", UIKey: "is_deleted", Value: "false" }],
-        [{ UIKey: "display_order", Direction: "ASC" }]
+        [{ UIKey: "display_order", Direction: "ASC" }],
       );
 
       return {
@@ -267,7 +273,8 @@ class DataService {
           version: themeRow.version,
           fontFamily: themeRow.font_family,
           fontUrl: themeRow.font_url,
-          defaultPageTemplate: themeRow.default_page_template || "service-standard",
+          defaultPageTemplate:
+            themeRow.default_page_template || "service-standard",
           themeSettings: themeRow.theme_json || {},
         },
         styleCss: themeRow.css || "",
@@ -306,7 +313,7 @@ class DataService {
           { Operand: "eq", UIKey: "workspace_guid", Value: workspaceId },
           { Operand: "eq", UIKey: "is_deleted", Value: "false" },
         ],
-        [{ UIKey: "post_id", Direction: "ASC" }]
+        [{ UIKey: "post_id", Direction: "ASC" }],
       );
 
       return (rows || []).map((p) => ({
@@ -338,7 +345,11 @@ class DataService {
       ];
 
       if (isNumeric) {
-        filters.push({ Operand: "eq", UIKey: "post_id", Value: String(postId) });
+        filters.push({
+          Operand: "eq",
+          UIKey: "post_id",
+          Value: String(postId),
+        });
       } else {
         filters.push({ Operand: "eq", UIKey: "slug", Value: String(postId) });
       }
@@ -347,7 +358,7 @@ class DataService {
         "bizfire_page_contents",
         "row_guid,post_id,slug,title,status,template_slug,sections_json,compiled_html,last_saved_at,last_published_at,live_url,wp_sync_status",
         filters,
-        [{ UIKey: "row_guid", Direction: "ASC" }]
+        [{ UIKey: "row_guid", Direction: "ASC" }],
       );
       let page = rows[0];
 
@@ -361,7 +372,7 @@ class DataService {
             { Operand: "eq", UIKey: "row_guid", Value: String(postId) },
             { Operand: "eq", UIKey: "is_deleted", Value: "false" },
           ],
-          [{ UIKey: "row_guid", Direction: "ASC" }]
+          [{ UIKey: "row_guid", Direction: "ASC" }],
         );
         page = rows[0];
       }
@@ -407,7 +418,8 @@ class DataService {
       const now = new Date().toISOString();
       const payload = {
         workspace_guid: workspaceId,
-        theme_guid: pageData.themeGuid || "a1000000-0000-0000-0000-000000000001",
+        theme_guid:
+          pageData.themeGuid || "a1000000-0000-0000-0000-000000000001",
         slug: pageData.slug,
         title: pageData.title,
         template_slug: pageData.templateId || "service-standard",
@@ -423,7 +435,8 @@ class DataService {
       }
 
       // Mandatory row_guid resolution for secure-merge
-      let targetRowGuid = pageData.rowGuid || pageData.pageGuid || pageData.row_guid;
+      let targetRowGuid =
+        pageData.rowGuid || pageData.pageGuid || pageData.row_guid;
       if (!targetRowGuid) {
         const existing = await this.getPageContent(workspaceId, postId);
         if (existing?.rowGuid) {
@@ -431,15 +444,19 @@ class DataService {
         }
       }
       if (!targetRowGuid) {
-        targetRowGuid = typeof crypto !== "undefined" && crypto.randomUUID
-          ? crypto.randomUUID()
-          : "e1000000-0000-0000-0000-" + String(postId).padStart(12, "0");
+        targetRowGuid =
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : "e1000000-0000-0000-0000-" + String(postId).padStart(12, "0");
       }
       payload.row_guid = targetRowGuid;
 
       const response = await this.merge([payload], "bizfire_page_contents");
       if (response.data?.status === "error" || response.data?.errorMessage) {
-        throw new Error(response.data.errorMessage || "Failed to merge page content into PostgreSQL");
+        throw new Error(
+          response.data.errorMessage ||
+            "Failed to merge page content into PostgreSQL",
+        );
       }
 
       return {
@@ -467,7 +484,8 @@ class DataService {
       const now = new Date().toISOString();
       const payload = {
         workspace_guid: workspaceId,
-        theme_guid: publishData.themeGuid || "a1000000-0000-0000-0000-000000000001",
+        theme_guid:
+          publishData.themeGuid || "a1000000-0000-0000-0000-000000000001",
         slug: publishData.slug,
         compiled_html: publishData.compiledHtml,
         status: "published",
@@ -484,9 +502,13 @@ class DataService {
       }
 
       // Mandatory row_guid resolution for secure-merge
-      let targetRowGuid = publishData.rowGuid || publishData.pageGuid || publishData.row_guid;
+      let targetRowGuid =
+        publishData.rowGuid || publishData.pageGuid || publishData.row_guid;
       if (!targetRowGuid && (publishData.postId || publishData.slug)) {
-        const existing = await this.getPageContent(workspaceId, publishData.postId || publishData.slug);
+        const existing = await this.getPageContent(
+          workspaceId,
+          publishData.postId || publishData.slug,
+        );
         if (existing?.rowGuid) {
           targetRowGuid = existing.rowGuid;
         }
@@ -497,7 +519,10 @@ class DataService {
 
       const response = await this.merge([payload], "bizfire_page_contents");
       if (response.data?.status === "error" || response.data?.errorMessage) {
-        throw new Error(response.data.errorMessage || "Failed to update page publish status in PostgreSQL");
+        throw new Error(
+          response.data.errorMessage ||
+            "Failed to update page publish status in PostgreSQL",
+        );
       }
 
       return {
@@ -520,7 +545,10 @@ class DataService {
    */
   async recordPublication(publicationRecord) {
     try {
-      const response = await this.secureInsert(publicationRecord, "publications");
+      const response = await this.secureInsert(
+        publicationRecord,
+        "publications",
+      );
       return {
         success: response.data?.status === "success" || response.status === 200,
         publicationGuid: publicationRecord.publication_guid,
