@@ -1,0 +1,10 @@
+{
+  "name": "Call to Action Banner",
+  "category": "Call to Action",
+  "fields": {
+    "title": { "type": "text", "label": "Heading", "required": true, "default": "Need Immediate AC or Heating Service?" },
+    "subtitle": { "type": "textarea", "label": "Subtitle", "default": "Speak directly with our Princeton dispatch team. No hold music, no automated runaround." },
+    "buttonText": { "type": "text", "label": "Button Label", "default": "Book Service Online" },
+    "buttonUrl": { "type": "text", "label": "Button URL", "default": "#book" }
+  }
+}

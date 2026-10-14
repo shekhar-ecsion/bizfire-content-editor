@@ -1,0 +1,12 @@
+{
+  "id": "service-emergency",
+  "name": "Emergency Service Layout",
+  "pageType": "service",
+  "description": "Urgent emergency layout: Split Hero, Instant CTA Banner, Benefits, and Reviews.",
+  "components": [
+    { "type": "hero-split" },
+    { "type": "cta-banner" },
+    { "type": "benefits-grid" },
+    { "type": "testimonials-grid" }
+  ]
+}

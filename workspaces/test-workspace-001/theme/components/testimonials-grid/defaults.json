@@ -1,0 +1,28 @@
+{
+  "eyebrow": "REVIEWS & TRUST",
+  "title": "What Princeton Homeowners Say",
+  "subtitle": "Over 1,200 verified reviews from families across Mercer County.",
+  "items": [
+    {
+      "_id": "t-01",
+      "author": "Sarah Jenkins",
+      "role": "Homeowner in Princeton",
+      "rating": "★★★★★",
+      "quote": "Technician arrived within 45 minutes on a 90-degree afternoon. Diagnosed the blown capacitor and had our AC cooling right away."
+    },
+    {
+      "_id": "t-02",
+      "author": "Marcus Vance",
+      "role": "Verified Customer",
+      "rating": "★★★★★",
+      "quote": "Transparent pricing with no hidden charges. Explained the repair options clearly before doing any work. Will definitely call again."
+    },
+    {
+      "_id": "t-03",
+      "author": "David & Elena Ross",
+      "role": "Residential Client",
+      "rating": "★★★★★",
+      "quote": "Bizfire replaced our entire central cooling system. Professional crew, spotless cleanup, and our energy bills actually dropped."
+    }
+  ]
+}
