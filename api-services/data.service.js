@@ -407,7 +407,7 @@ class DataService {
       const now = new Date().toISOString();
       const payload = {
         workspace_guid: workspaceId,
-        theme_guid: "a1000000-0000-0000-0000-000000000001",
+        theme_guid: pageData.themeGuid || "a1000000-0000-0000-0000-000000000001",
         slug: pageData.slug,
         title: pageData.title,
         template_slug: pageData.templateId || "service-standard",
@@ -421,17 +421,35 @@ class DataService {
       if (isNumeric) {
         payload.post_id = Number(postId);
       }
-      if (pageData.rowGuid || pageData.pageGuid) {
-        payload.row_guid = pageData.rowGuid || pageData.pageGuid;
+
+      // Mandatory row_guid resolution for secure-merge
+      let targetRowGuid = pageData.rowGuid || pageData.pageGuid || pageData.row_guid;
+      if (!targetRowGuid) {
+        const existing = await this.getPageContent(workspaceId, postId);
+        if (existing?.rowGuid) {
+          targetRowGuid = existing.rowGuid;
+        }
       }
+      if (!targetRowGuid) {
+        targetRowGuid = typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : "e1000000-0000-0000-0000-" + String(postId).padStart(12, "0");
+      }
+      payload.row_guid = targetRowGuid;
 
       const response = await this.merge([payload], "bizfire_page_contents");
+      if (response.data?.status === "error" || response.data?.errorMessage) {
+        throw new Error(response.data.errorMessage || "Failed to merge page content into PostgreSQL");
+      }
+
       return {
-        success: response.data?.status === "success" || response.status === 200,
+        success: true,
         savedAt: now,
         postId: payload.post_id || postId,
+        rowGuid: payload.row_guid,
         slug: payload.slug,
         title: payload.title,
+        sections: cleanSections,
       };
     } catch (err) {
       console.error("Error saving page content:", err);
@@ -449,7 +467,7 @@ class DataService {
       const now = new Date().toISOString();
       const payload = {
         workspace_guid: workspaceId,
-        theme_guid: "a1000000-0000-0000-0000-000000000001",
+        theme_guid: publishData.themeGuid || "a1000000-0000-0000-0000-000000000001",
         slug: publishData.slug,
         compiled_html: publishData.compiledHtml,
         status: "published",
@@ -465,11 +483,28 @@ class DataService {
         payload.post_id = Number(publishData.postId);
       }
 
+      // Mandatory row_guid resolution for secure-merge
+      let targetRowGuid = publishData.rowGuid || publishData.pageGuid || publishData.row_guid;
+      if (!targetRowGuid && (publishData.postId || publishData.slug)) {
+        const existing = await this.getPageContent(workspaceId, publishData.postId || publishData.slug);
+        if (existing?.rowGuid) {
+          targetRowGuid = existing.rowGuid;
+        }
+      }
+      if (targetRowGuid) {
+        payload.row_guid = targetRowGuid;
+      }
+
       const response = await this.merge([payload], "bizfire_page_contents");
+      if (response.data?.status === "error" || response.data?.errorMessage) {
+        throw new Error(response.data.errorMessage || "Failed to update page publish status in PostgreSQL");
+      }
+
       return {
-        success: response.data?.status === "success" || response.status === 200,
+        success: true,
         publishedAt: payload.last_published_at,
         postId: payload.post_id,
+        rowGuid: payload.row_guid,
         slug: payload.slug,
         liveUrl: payload.live_url,
       };

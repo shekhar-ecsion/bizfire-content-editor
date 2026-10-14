@@ -370,6 +370,7 @@ export default function Editor({
         body: JSON.stringify({
           workspaceId: workspace.workspaceId,
           postId: pageData.postId,
+          rowGuid: pageData.rowGuid || pageData.pageGuid,
           title: pageTitle,
           slug: pageSlug,
           templateId: activeTemplateId || pageData.templateId,
@@ -405,6 +406,7 @@ export default function Editor({
         body: JSON.stringify({
           workspaceId: workspace.workspaceId,
           postId: pageData.postId,
+          rowGuid: pageData.rowGuid || pageData.pageGuid,
           title: pageTitle,
           slug: pageSlug,
           templateId: activeTemplateId || pageData.templateId,

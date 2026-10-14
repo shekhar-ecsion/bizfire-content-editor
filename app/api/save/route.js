@@ -4,7 +4,7 @@ import { DataSource } from '../../../lib/dataSource.js';
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { workspaceId, postId, slug, title, templateId, sections } = body;
+    const { workspaceId, postId, rowGuid, pageGuid, slug, title, templateId, sections } = body;
 
     if (!workspaceId) {
       return NextResponse.json(
@@ -21,6 +21,7 @@ export async function POST(request) {
     }
 
     const result = await DataSource.savePageContent(workspaceId, postId, {
+      rowGuid: rowGuid || pageGuid,
       slug,
       title,
       templateId,
@@ -30,9 +31,11 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       postId,
+      rowGuid: result?.rowGuid,
       savedAt: result?.savedAt || new Date().toISOString(),
       slug: result?.slug || slug,
       title: result?.title || title,
+      sections: result?.sections || sections,
     });
   } catch (error) {
     console.error('API /api/save error:', error);

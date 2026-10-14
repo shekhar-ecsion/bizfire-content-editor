@@ -4,7 +4,7 @@ import { DataSource } from '../../../lib/dataSource.js';
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { workspaceId, postId, sections, slug, title, templateId } = body;
+    const { workspaceId, postId, rowGuid, pageGuid, sections, slug, title, templateId } = body;
 
     if (!workspaceId) {
       return NextResponse.json(
@@ -23,6 +23,7 @@ export async function POST(request) {
     // If client sent unsaved sections with publish request, save first
     if (sections) {
       await DataSource.savePageContent(workspaceId, postId, {
+        rowGuid: rowGuid || pageGuid,
         slug,
         title,
         templateId,

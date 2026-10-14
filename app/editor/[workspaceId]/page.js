@@ -4,7 +4,6 @@ import WorkspacePageList from "./WorkspacePageList";
 
 export default async function WorkspacePagesPage({ params }) {
   const { workspaceId } = await params;
-
   let workspace;
   let themeBundle;
   let pages = [];
