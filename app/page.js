@@ -1,20 +1,21 @@
-import { listThemes, loadTheme, buildPageFromVariant } from '../lib/theme';
+import { listThemes, loadTheme, buildPageFromTemplate } from '../lib/theme';
 import Editor from './Editor';
 
 export default function Home() {
   const availableThemes = listThemes();
   const defaultThemeId = 'trades-modern';
   const themeData = loadTheme(defaultThemeId);
-  const defaultVariant = themeData.variants[0] || { components: [] };
-  const initialPage = buildPageFromVariant(themeData.components, defaultVariant);
+  const defaultTemplate = themeData.pageTemplates[0] || { components: [] };
+  const initialPage = buildPageFromTemplate(themeData.components, defaultTemplate);
 
   return (
     <Editor
+      mode="playground"
       availableThemes={availableThemes}
       initialTheme={themeData.theme}
       initialThemeCss={themeData.styleCss}
       initialComponents={themeData.components}
-      initialVariants={themeData.variants}
+      initialPageTemplates={themeData.pageTemplates}
       initialPage={initialPage}
     />
   );

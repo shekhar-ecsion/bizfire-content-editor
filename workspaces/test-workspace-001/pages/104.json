@@ -3,8 +3,8 @@
   "slug": "bathroom-issues",
   "title": "bathroom issues",
   "templateId": "service-emergency",
-  "lastSavedAt": "2026-10-14T11:25:00.046Z",
-  "lastPublishedAt": null,
+  "lastSavedAt": "2026-10-14T11:41:34.772Z",
+  "lastPublishedAt": "2026-10-14T11:41:34.798Z",
   "sections": [
     {
       "type": "hero-split",
@@ -84,6 +84,31 @@
             "role": "Residential Client",
             "rating": "★★★★★",
             "quote": "Bizfire replaced our entire central cooling system. Professional crew, spotless cleanup, and our energy bills actually dropped."
+          }
+        ]
+      }
+    },
+    {
+      "type": "faq-accordion",
+      "content": {
+        "eyebrow": "COMMON QUESTIONS",
+        "title": "Frequently Asked Questions",
+        "subtitle": "Quick answers regarding diagnostic fees, warranties, and emergency dispatch.",
+        "items": [
+          {
+            "_id": "faq-01",
+            "question": "How quickly can a technician reach my home in Princeton?",
+            "answer": "For active cooling emergencies during summer, our average dispatch window is 30 to 45 minutes across the Princeton area."
+          },
+          {
+            "_id": "faq-02",
+            "question": "Do you charge extra for evening or weekend visits?",
+            "answer": "No. We believe in clear, flat-rate pricing. You receive the exact repair estimate upfront before any wrench is turned."
+          },
+          {
+            "_id": "faq-03",
+            "question": "What warranty comes with repairs//",
+            "answer": "All parts and labor carry a 1-year 100% satisfaction guarantee. If the issue recurs, we return and fix it at no charge."
           }
         ]
       }
