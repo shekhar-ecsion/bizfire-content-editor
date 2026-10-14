@@ -400,6 +400,18 @@ export default function Editor({
     setIsPublishing(true);
     setPublishStatus(null);
     try {
+      // Resolve project API key: workspace object -> localStorage domain-storage
+      let apiKey = workspace?.apiKey || '';
+      if (!apiKey && typeof window !== 'undefined') {
+        try {
+          const stored = localStorage.getItem('domain-storage');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            apiKey = parsed?.state?.apiKey || parsed?.apiKey || '';
+          }
+        } catch (_) {}
+      }
+
       const res = await fetch('/api/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -410,7 +422,8 @@ export default function Editor({
           title: pageTitle,
           slug: pageSlug,
           templateId: activeTemplateId || pageData.templateId,
-          sections: page
+          sections: page,
+          apiKey: apiKey || undefined,
         })
       });
 
@@ -423,12 +436,20 @@ export default function Editor({
       setLastPublished(data.publishedAt);
       setLastSaved(data.publishedAt);
       setIsDirty(false);
-      setPublishStatus({
-        type: 'success',
-        text: 'Published to WordPress!',
-        liveUrl: data.liveUrl
-      });
-      setTimeout(() => setPublishStatus(null), 6000);
+
+      if (data.wpSyncStatus === 'error') {
+        setPublishStatus({
+          type: 'error',
+          text: `Saved locally, but WordPress sync failed: ${data.wpSyncError || 'Forbidden'}`
+        });
+      } else {
+        setPublishStatus({
+          type: 'success',
+          text: 'Published to WordPress!',
+          liveUrl: data.liveUrl
+        });
+        setTimeout(() => setPublishStatus(null), 6000);
+      }
     } catch (err) {
       setPublishStatus({ type: 'error', text: err.message });
     } finally {
