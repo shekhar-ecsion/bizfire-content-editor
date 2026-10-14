@@ -169,62 +169,77 @@ class DataService {
    */
   async getThemeBundle(workspaceId) {
     try {
-      // 1. Fetch workspace theme
-      const themeRes = await this.secureSelect({
+      // 1. Fetch workspace theme (or fallback to master theme if not cloned yet)
+      let themeRes = await this.secureSelect({
         data_json: {
-          table_name: "bizfire_themes",
+          table_name: "themes",
           request: { workspace_guid: workspaceId, is_deleted: false },
         },
       });
-      const themeRows = themeRes.data?.data || themeRes.data || [];
-      const themeRow = Array.isArray(themeRows) ? themeRows[0] : themeRows;
+      let themeRows = themeRes.data?.data || themeRes.data || [];
+      let themeRow = Array.isArray(themeRows) ? themeRows[0] : themeRows;
 
       if (!themeRow) {
-        throw new Error(`No cloned theme found for workspace ${workspaceId}`);
+        // Fallback to active master theme
+        themeRes = await this.secureSelect({
+          data_json: {
+            table_name: "themes",
+            request: { is_master: true, is_deleted: false },
+          },
+        });
+        themeRows = themeRes.data?.data || themeRes.data || [];
+        themeRow = Array.isArray(themeRows) ? themeRows[0] : themeRows;
       }
+
+      if (!themeRow) {
+        throw new Error(`No theme found for workspace ${workspaceId} or master themes.`);
+      }
+
+      const activeThemeGuid = themeRow.theme_guid || themeRow.row_guid;
 
       // 2. Fetch components for this theme
       const compRes = await this.secureSelect({
         data_json: {
-          table_name: "bizfire_theme_components",
-          request: { theme_guid: themeRow.row_guid, is_deleted: false },
+          table_name: "theme_components",
+          request: { theme_guid: activeThemeGuid, is_deleted: false },
         },
       });
       const compRows = compRes.data?.data || compRes.data || [];
 
-      // 3. Fetch page templates for this theme
-      const tmplRes = await this.secureSelect({
+      // 3. Fetch page variants (templates) for this theme
+      const variantRes = await this.secureSelect({
         data_json: {
-          table_name: "bizfire_page_templates",
-          request: { theme_guid: themeRow.row_guid, is_deleted: false },
+          table_name: "theme_page_variants",
+          request: { theme_guid: activeThemeGuid, is_deleted: false },
         },
       });
-      const tmplRows = tmplRes.data?.data || tmplRes.data || [];
+      const variantRows = variantRes.data?.data || variantRes.data || [];
 
       return {
         theme: {
           id: themeRow.theme_slug,
-          name: themeRow.theme_name,
+          name: themeRow.name,
           version: themeRow.version,
           fontFamily: themeRow.font_family,
           fontUrl: themeRow.font_url,
-          defaultPageTemplate: themeRow.default_page_template,
-          themeSettings: themeRow.theme_settings,
+          defaultPageTemplate: themeRow.default_page_template || "service-standard",
+          themeSettings: themeRow.theme_json || {},
         },
-        styleCss: themeRow.style_css || "",
+        styleCss: themeRow.css || "",
         components: (Array.isArray(compRows) ? compRows : []).map((c) => ({
-          id: c.component_slug,
+          id: c.component_key,
           name: c.name,
           category: c.category,
-          schema: c.schema_json,
-          template: c.template_html,
-          defaults: c.defaults_json,
+          schema: c.schema_json?.fields || c.schema_json || {},
+          rawSchema: c.schema_json || {},
+          template: c.template_html || "",
+          defaults: c.defaults_json || {},
         })),
-        pageTemplates: (Array.isArray(tmplRows) ? tmplRows : []).map((t) => ({
-          id: t.template_slug,
-          name: t.name,
-          description: t.description,
-          components: t.components_json,
+        pageTemplates: (Array.isArray(variantRows) ? variantRows : []).map((v) => ({
+          id: v.variant_key,
+          name: v.name,
+          description: v.description,
+          components: v.layout_json || [],
         })),
       };
     } catch (err) {
@@ -241,17 +256,17 @@ class DataService {
     try {
       const response = await this.secureSelect({
         data_json: {
-          table_name: "bizfire_page_contents",
+          table_name: "pages",
           request: { workspace_guid: workspaceId, is_deleted: false },
         },
       });
       const rows = response.data?.data || response.data || [];
       return (Array.isArray(rows) ? rows : []).map((p) => ({
-        postId: p.post_id,
+        postId: p.wp_post_id || p.id,
         slug: p.slug,
         title: p.title,
-        templateId: p.template_slug,
-        lastSavedAt: p.last_saved_at,
+        templateId: p.variant_guid || p.page_type_guid || "service-standard",
+        lastSavedAt: p.last_saved_at || p.updated_on,
         lastPublishedAt: p.last_published_at,
         status: p.status,
       }));
@@ -268,30 +283,56 @@ class DataService {
    */
   async getPageContent(workspaceId, postId) {
     try {
-      const response = await this.secureSelect({
+      const isNumeric = !isNaN(Number(postId));
+      const requestFilter = {
+        workspace_guid: workspaceId,
+        is_deleted: false,
+      };
+      if (isNumeric) {
+        requestFilter.wp_post_id = Number(postId);
+      } else {
+        requestFilter.import_key = String(postId);
+      }
+
+      let response = await this.secureSelect({
         data_json: {
-          table_name: "bizfire_page_contents",
-          request: {
-            workspace_guid: workspaceId,
-            post_id: Number(postId),
-            is_deleted: false,
-          },
+          table_name: "pages",
+          request: requestFilter,
         },
       });
-      const rows = response.data?.data || response.data || [];
-      const page = Array.isArray(rows) ? rows[0] : rows;
+      let rows = response.data?.data || response.data || [];
+      let page = Array.isArray(rows) ? rows[0] : rows;
+
+      // Fallback: search by id if not matched by wp_post_id or import_key
+      if (!page && isNumeric) {
+        response = await this.secureSelect({
+          data_json: {
+            table_name: "pages",
+            request: {
+              workspace_guid: workspaceId,
+              id: Number(postId),
+              is_deleted: false,
+            },
+          },
+        });
+        rows = response.data?.data || response.data || [];
+        page = Array.isArray(rows) ? rows[0] : rows;
+      }
+
       if (!page) return null;
 
       return {
-        postId: page.post_id,
+        postId: page.wp_post_id || page.id,
         slug: page.slug,
         title: page.title,
-        templateId: page.template_slug,
-        lastSavedAt: page.last_saved_at,
+        templateId: page.variant_guid || "service-standard",
+        lastSavedAt: page.last_saved_at || page.updated_on,
         lastPublishedAt: page.last_published_at,
         status: page.status,
-        sections: page.sections_json || [],
+        sections: page.content_json || [],
         compiledHtml: page.compiled_html || "",
+        seoJson: page.seo_json || {},
+        analysisJson: page.analysis_json || {},
       };
     } catch (err) {
       console.error("Error fetching page content:", err);
@@ -313,21 +354,27 @@ class DataService {
         return rest;
       });
 
+      const isNumeric = !isNaN(Number(postId));
       const payload = {
         workspace_guid: workspaceId,
-        post_id: Number(postId),
         slug: pageData.slug,
         title: pageData.title,
-        template_slug: pageData.templateId || "service-standard",
-        sections_json: cleanSections,
+        content_json: cleanSections,
         status: pageData.status || "draft",
         last_saved_at: new Date().toISOString(),
+        updated_on: new Date().toISOString(),
       };
+
+      if (isNumeric) {
+        payload.wp_post_id = Number(postId);
+      } else {
+        payload.import_key = String(postId);
+      }
 
       return await this.mergeWithCompositeKeys(
         payload,
-        "bizfire_page_contents",
-        ["workspace_guid", "post_id"]
+        "pages",
+        ["workspace_guid", "slug"]
       );
     } catch (err) {
       console.error("Error saving page content:", err);
@@ -344,7 +391,7 @@ class DataService {
   async cloneTheme(masterThemeSlug, workspaceId, userEmail = "system") {
     try {
       return await this.secureInvokeCustomSP({
-        sp_name: "fn_bizfire_clone_theme_to_workspace",
+        sp_name: "sp_bizfire_clone_theme_to_workspace",
         parameters: {
           p_master_theme_slug: masterThemeSlug,
           p_workspace_guid: workspaceId,
