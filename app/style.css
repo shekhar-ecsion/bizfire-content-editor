@@ -1767,3 +1767,45 @@ fieldset.editor-field--array legend small {
   font-size: 14px;
 }
 
+/* Missing Component Safety Styles */
+.component-missing-alert {
+  padding: 24px;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 12px;
+  text-align: center;
+  margin: 20px;
+}
+
+.component-missing-alert h3 {
+  color: #be123c;
+  font-size: 16px;
+  margin: 0 0 8px;
+}
+
+.component-missing-alert p {
+  color: #881337;
+  font-size: 13px;
+  margin: 0 0 16px;
+}
+
+.preview-component-missing {
+  padding: 32px 24px;
+  background: #fff1f2;
+  border: 2px dashed #fda4af;
+  border-radius: 8px;
+  text-align: center;
+  color: #be123c;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 16px 0;
+}
+
+.preview-component-missing code {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  background: #ffe4e6;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+

@@ -1,6 +1,0 @@
-{
-  "title": { "type": "text", "label": "Title", "required": true },
-  "subtitle": { "type": "text", "label": "Subtitle" },
-  "buttonText": { "type": "text", "label": "Button Text" },
-  "buttonUrl": { "type": "text", "label": "Button URL" }
-}

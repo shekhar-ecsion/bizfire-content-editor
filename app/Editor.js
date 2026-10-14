@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useRef } from 'react';
+import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Handlebars from 'handlebars';
 import ImageCropperModal from './ImageCropperModal';
@@ -310,13 +310,16 @@ export default function Editor({
   initialTheme,
   initialThemeCss = '',
   initialComponents = [],
+  initialPageTemplates = [],
   initialVariants = [],
   initialPage = []
 }) {
+  const templates = initialPageTemplates.length > 0 ? initialPageTemplates : initialVariants;
+
   const [theme, setTheme] = useState(initialTheme);
   const [themeCss, setThemeCss] = useState(initialThemeCss);
   const [components, setComponents] = useState(initialComponents);
-  const [variants, setVariants] = useState(initialVariants);
+  const [pageTemplates, setPageTemplates] = useState(templates);
 
   // Initialize page ensuring all sections have temporary runtime instanceIds
   const [page, setPage] = useState(() => {
@@ -332,8 +335,8 @@ export default function Editor({
     return src[0]?.instanceId || '';
   });
 
-  const [activeVariantId, setActiveVariantId] = useState(() => {
-    return pageData?.templateId || initialVariants[0]?.id || '';
+  const [activeTemplateId, setActiveTemplateId] = useState(() => {
+    return pageData?.templateId || templates[0]?.id || '';
   });
 
   // Workspace-specific editing state
@@ -355,7 +358,7 @@ export default function Editor({
   const selected = page.find(x => x.instanceId === selectedId) || page[0];
   const selectedDef = selected ? library[selected.type] : null;
 
-  async function handleSave() {
+  const handleSave = useCallback(async () => {
     if (mode !== 'workspace' || !workspace || !pageData) return;
     setIsSaving(true);
     setSaveStatus(null);
@@ -368,7 +371,7 @@ export default function Editor({
           postId: pageData.postId,
           title: pageTitle,
           slug: pageSlug,
-          templateId: activeVariantId || pageData.templateId,
+          templateId: activeTemplateId || pageData.templateId,
           sections: page
         })
       });
@@ -388,9 +391,9 @@ export default function Editor({
     } finally {
       setIsSaving(false);
     }
-  }
+  }, [mode, workspace, pageData, pageTitle, pageSlug, activeTemplateId, page]);
 
-  async function handlePublish() {
+  const handlePublish = useCallback(async () => {
     if (mode !== 'workspace' || !workspace || !pageData) return;
     setIsPublishing(true);
     setPublishStatus(null);
@@ -403,7 +406,7 @@ export default function Editor({
           postId: pageData.postId,
           title: pageTitle,
           slug: pageSlug,
-          templateId: activeVariantId || pageData.templateId,
+          templateId: activeTemplateId || pageData.templateId,
           sections: page
         })
       });
@@ -428,7 +431,33 @@ export default function Editor({
     } finally {
       setIsPublishing(false);
     }
-  }
+  }, [mode, workspace, pageData, pageTitle, pageSlug, activeTemplateId, page]);
+
+  // Keyboard shortcut: Cmd+S / Ctrl+S to save in workspace mode
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        if (mode === 'workspace') {
+          handleSave();
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mode, handleSave]);
+
+  // Warn on tab close / reload if unsaved changes exist
+  useEffect(() => {
+    function handleBeforeUnload(e) {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
 
   async function switchTheme(newThemeId) {
     if (newThemeId === theme?.id) return;
@@ -440,9 +469,10 @@ export default function Editor({
       setTheme(data.theme);
       setThemeCss(data.styleCss);
       setComponents(data.components);
-      setVariants(data.variants);
+      const incomingTemplates = data.pageTemplates || data.variants || [];
+      setPageTemplates(incomingTemplates);
       setPage(data.initialPage || []);
-      setActiveVariantId(data.variants[0]?.id || '');
+      setActiveTemplateId(incomingTemplates[0]?.id || '');
       setSelectedId(data.initialPage[0]?.instanceId || '');
     } catch (err) {
       console.error('Error switching theme:', err);
@@ -494,13 +524,13 @@ export default function Editor({
   }
 
   // Load a complete Page Template skeleton
-  function loadVariant(variantId) {
+  function loadTemplate(templateId) {
     setIsDirty(true);
-    const variant = variants.find(v => v.id === variantId);
-    if (!variant) return;
-    setActiveVariantId(variantId);
+    const template = pageTemplates.find(t => t.id === templateId);
+    if (!template) return;
+    setActiveTemplateId(templateId);
 
-    const newPage = (variant.components || []).map((compRef, idx) => {
+    const newPage = (template.components || []).map((compRef, idx) => {
       const compDef = library[compRef.type];
       const instanceId = `inst_${Date.now()}_${idx + 1}`;
       const content = compDef?.defaults
@@ -513,24 +543,29 @@ export default function Editor({
     setSelectedId(newPage[0]?.instanceId || '');
   }
 
-  // Save current composition as a reusable Page Variant skeleton (Issue-4)
-  function saveAsPageVariant() {
-    const variantSkeleton = {
-      id: `variant-custom-${Date.now().toString(36)}`,
-      name: `Custom ${theme?.name || 'Theme'} Variant`,
-      pageType: 'service',
+  // Backward compatibility alias
+  const loadVariant = loadTemplate;
+
+  // Save current composition as a reusable Page Template skeleton
+  function saveAsTemplate() {
+    const templateSkeleton = {
+      id: `template-custom-${Date.now().toString(36)}`,
+      name: `Custom ${theme?.name || 'Theme'} Template`,
       description: 'Exported from Bizfire Page Editor studio.',
       components: page.map(item => ({ type: item.type }))
     };
 
-    const blob = new Blob([JSON.stringify(variantSkeleton, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(templateSkeleton, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${variantSkeleton.id}.json`;
+    link.download = `${templateSkeleton.id}.json`;
     link.click();
     URL.revokeObjectURL(url);
   }
+
+  // Backward compatibility alias
+  const saveAsPageVariant = saveAsTemplate;
 
   // Generate complete, self-contained, high-performance HTML
   function generateFullHtml() {
@@ -590,7 +625,16 @@ ${renderedSections}
         {mode === 'workspace' ? (
           <>
             <div className="brand-wrap">
-              <Link href={`/editor/${workspace?.workspaceId}`} className="ws-back-btn" title="Back to workspace pages">
+              <Link
+                href={`/editor/${workspace?.workspaceId}`}
+                className="ws-back-btn"
+                title="Back to workspace pages"
+                onClick={(e) => {
+                  if (isDirty && !window.confirm('You have unsaved changes. Leave without saving?')) {
+                    e.preventDefault();
+                  }
+                }}
+              >
                 ← Pages
               </Link>
               <div className="ws-header-page-info">
@@ -613,10 +657,19 @@ ${renderedSections}
             </div>
 
             <div className="header-actions">
-              {isDirty ? (
-                <span className="status-badge badge-changes">● Unsaved</span>
+              {/* Publish / Saved Status Badge */}
+              {!lastPublished ? (
+                <span className="status-badge badge-draft" title="This page has never been published to WordPress">
+                  ● Draft
+                </span>
+              ) : isDirty ? (
+                <span className="status-badge badge-changes" title={`Published at ${new Date(lastPublished).toLocaleTimeString()}, with unsaved edits`}>
+                  ● Unpublished Changes
+                </span>
               ) : (
-                <span className="status-badge badge-published">✓ Saved</span>
+                <span className="status-badge badge-published" title={`Published at ${new Date(lastPublished).toLocaleTimeString()}`}>
+                  ✓ Published
+                </span>
               )}
 
               {saveStatus && (
@@ -650,6 +703,7 @@ ${renderedSections}
                 className="btn-primary"
                 onClick={handleSave}
                 disabled={isSaving}
+                title="Save changes (Ctrl+S / Cmd+S)"
               >
                 {isSaving ? 'Saving...' : 'Save'}
               </button>
@@ -659,6 +713,7 @@ ${renderedSections}
                 className="btn-publish"
                 onClick={handlePublish}
                 disabled={isPublishing}
+                title="Compile and push page HTML to WordPress"
               >
                 {isPublishing ? 'Publishing...' : 'Publish to WordPress'}
               </button>
@@ -701,10 +756,10 @@ ${renderedSections}
               <button
                 type="button"
                 className="btn-secondary"
-                onClick={saveAsPageVariant}
+                onClick={saveAsTemplate}
                 title="Export reusable layout skeleton without customer content"
               >
-                Save as Variant ⤓
+                Save as Template ⤓
               </button>
               <button
                 type="button"
@@ -720,17 +775,17 @@ ${renderedSections}
       </header>
 
       <div className="page-editor-grid">
-        {/* Left Sidebar: Page Composition & Variant Selector */}
+        {/* Left Sidebar: Page Composition & Template Selector */}
         <aside className="component-list-panel">
-          {variants.length > 0 && (
+          {pageTemplates.length > 0 && (
             <div className="variant-selector-box">
-              <label>PAGE LAYOUT VARIANT</label>
+              <label>PAGE TEMPLATE</label>
               <select
-                value={activeVariantId}
-                onChange={e => loadVariant(e.target.value)}
+                value={activeTemplateId}
+                onChange={e => loadTemplate(e.target.value)}
               >
-                {variants.map(v => (
-                  <option key={v.id} value={v.id}>{v.name}</option>
+                {pageTemplates.map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
             </div>
@@ -814,27 +869,43 @@ ${renderedSections}
           </div>
         </aside>
 
-        {/* Center Sidebar: Generic Schema Form Engine */}
+        {/* Center Sidebar: Generic Schema Form Engine with Component-Not-Found safety */}
         <aside className="editor-panel">
-          {selectedDef ? (
-            <>
-              <div className="panel-heading">
-                <p className="panel-kicker">{selectedDef.category || 'COMPONENT'}</p>
-                <h1>{selectedDef.name}</h1>
-                <span>Inferred from <code>{selectedDef.id}/schema.json</code></span>
+          {selected ? (
+            selectedDef ? (
+              <>
+                <div className="panel-heading">
+                  <p className="panel-kicker">{selectedDef.category || 'COMPONENT'}</p>
+                  <h1>{selectedDef.name}</h1>
+                  <span>Inferred from <code>{selectedDef.id}/schema.json</code></span>
+                </div>
+                <div className="fields">
+                  {Object.entries(selectedDef.schema).map(([name, config]) => (
+                    <GenericField
+                      key={name}
+                      name={name}
+                      config={config}
+                      value={selected.content?.[name]}
+                      onChange={v => updateField(name, v)}
+                    />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="component-missing-alert">
+                <h3>⚠️ Component "{selected.type}" Not Found</h3>
+                <p>
+                  This section references a component that is not available in the current theme.
+                </p>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => removeSection(selected.instanceId)}
+                >
+                  Remove Section
+                </button>
               </div>
-              <div className="fields">
-                {Object.entries(selectedDef.schema).map(([name, config]) => (
-                  <GenericField
-                    key={name}
-                    name={name}
-                    config={config}
-                    value={selected.content?.[name]}
-                    onChange={v => updateField(name, v)}
-                  />
-                ))}
-              </div>
-            </>
+            )
           ) : (
             <p>Select a section to edit.</p>
           )}
@@ -889,9 +960,21 @@ ${renderedSections}
 
             {page.map(item => {
               const def = library[item.type];
-              if (!def) return null;
-              const html = Handlebars.compile(def.template)(item.content);
               const isSelected = item.instanceId === selectedId;
+
+              if (!def) {
+                return (
+                  <div
+                    key={item.instanceId}
+                    className={`preview-component preview-component-missing ${isSelected ? 'is-selected' : ''}`}
+                    onClick={() => setSelectedId(item.instanceId)}
+                  >
+                    <span>⚠️ Component <code>{item.type}</code> not found in active theme</span>
+                  </div>
+                );
+              }
+
+              const html = Handlebars.compile(def.template)(item.content);
 
               return (
                 <div
