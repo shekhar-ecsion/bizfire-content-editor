@@ -58,14 +58,54 @@ class DataService {
    * @param {string} tableName target table
    */
   async merge(payload, tableName) {
+    const requestArray = Array.isArray(payload) ? payload : [payload];
     return azureAxiosInstance.post("secure-merge", {
       request_json: {
         data_json: {
-          request: payload,
+          request: requestArray,
           table_name: tableName,
         },
       },
     });
+  }
+
+  /**
+   * Universal SELECT query helper targeting Azure .NET API gateway
+   * @param {string} tableName
+   * @param {string} columnsCsv
+   * @param {Array} filters
+   * @param {Array} orderBy
+   * @param {string|number} pageNumber
+   * @param {string|number} pageSize
+   */
+  async selectRows(
+    tableName,
+    columnsCsv,
+    filters = [],
+    orderBy = [{ UIKey: "row_guid", Direction: "ASC" }],
+    pageNumber = "1",
+    pageSize = "100"
+  ) {
+    try {
+      const response = await this.secureSelect({
+        table_name: tableName,
+        columns_csv: columnsCsv,
+        filter_json_array: filters,
+        order_by_json: orderBy,
+        page_number: String(pageNumber),
+        page_size: String(pageSize),
+      });
+
+      const resp = response.data?.response;
+      if (Array.isArray(resp)) return resp;
+      if (Array.isArray(resp?.results)) return resp.results;
+      if (Array.isArray(response.data?.data)) return response.data.data;
+      if (Array.isArray(response.data)) return response.data;
+      return [];
+    } catch (err) {
+      console.error(`Error selecting rows from ${tableName}:`, err.message);
+      return [];
+    }
   }
 
   /**
@@ -143,14 +183,12 @@ class DataService {
    */
   async getWorkspace(workspaceId) {
     try {
-      const response = await this.secureSelect({
-        data_json: {
-          table_name: "user_workspaces",
-          request: { workspace_guid: workspaceId },
-        },
-      });
-      const data = response.data?.data || response.data || [];
-      const ws = Array.isArray(data) ? data[0] : data;
+      const rows = await this.selectRows(
+        "user_workspaces",
+        "workspace_guid,workspace_name,site_url,data_json",
+        [{ Operand: "eq", UIKey: "workspace_guid", Value: workspaceId }]
+      );
+      const ws = rows[0];
       return {
         workspaceId: ws?.workspace_guid || workspaceId,
         clientName: ws?.workspace_name || "Princeton Comfort HVAC",
@@ -179,50 +217,48 @@ class DataService {
   async getThemeBundle(workspaceId) {
     try {
       // 1. Fetch workspace theme (or fallback to master theme if not cloned yet)
-      let themeRes = await this.secureSelect({
-        data_json: {
-          table_name: "themes",
-          request: { workspace_guid: workspaceId, is_deleted: false },
-        },
-      });
-      let themeRows = themeRes.data?.data || themeRes.data || [];
-      let themeRow = Array.isArray(themeRows) ? themeRows[0] : themeRows;
+      let themeRows = await this.selectRows(
+        "themes",
+        "row_guid,theme_slug,name,theme_guid,version,font_family,font_url,css,theme_json,default_page_template",
+        [
+          { Operand: "eq", UIKey: "workspace_guid", Value: workspaceId },
+          { Operand: "eq", UIKey: "is_deleted", Value: "false" },
+        ]
+      );
+      let themeRow = themeRows[0];
 
       if (!themeRow) {
         // Fallback to active master theme
-        themeRes = await this.secureSelect({
-          data_json: {
-            table_name: "themes",
-            request: { is_master: true, is_deleted: false },
-          },
-        });
-        themeRows = themeRes.data?.data || themeRes.data || [];
-        themeRow = Array.isArray(themeRows) ? themeRows[0] : themeRows;
+        themeRows = await this.selectRows(
+          "themes",
+          "row_guid,theme_slug,name,theme_guid,version,font_family,font_url,css,theme_json,default_page_template",
+          [
+            { Operand: "eq", UIKey: "is_master", Value: "true" },
+            { Operand: "eq", UIKey: "is_deleted", Value: "false" },
+          ]
+        );
+        themeRow = themeRows[0];
       }
 
       if (!themeRow) {
         throw new Error(`No theme found for workspace ${workspaceId} or master themes.`);
       }
 
-      const activeThemeGuid = themeRow.theme_guid || themeRow.row_guid;
-
       // 2. Fetch components for this theme
-      const compRes = await this.secureSelect({
-        data_json: {
-          table_name: "theme_components",
-          request: { theme_guid: activeThemeGuid, is_deleted: false },
-        },
-      });
-      const compRows = compRes.data?.data || compRes.data || [];
+      const compRows = await this.selectRows(
+        "theme_components",
+        "row_guid,component_key,name,category,schema_json,template_html,defaults_json,display_order",
+        [{ Operand: "eq", UIKey: "is_deleted", Value: "false" }],
+        [{ UIKey: "display_order", Direction: "ASC" }]
+      );
 
       // 3. Fetch page variants (templates) for this theme
-      const variantRes = await this.secureSelect({
-        data_json: {
-          table_name: "theme_page_variants",
-          request: { theme_guid: activeThemeGuid, is_deleted: false },
-        },
-      });
-      const variantRows = variantRes.data?.data || variantRes.data || [];
+      const variantRows = await this.selectRows(
+        "theme_page_variants",
+        "row_guid,variant_key,name,description,layout_json,display_order",
+        [{ Operand: "eq", UIKey: "is_deleted", Value: "false" }],
+        [{ UIKey: "display_order", Direction: "ASC" }]
+      );
 
       return {
         theme: {
@@ -235,7 +271,7 @@ class DataService {
           themeSettings: themeRow.theme_json || {},
         },
         styleCss: themeRow.css || "",
-        components: (Array.isArray(compRows) ? compRows : []).map((c) => ({
+        components: (compRows || []).map((c) => ({
           id: c.component_key,
           name: c.name,
           category: c.category,
@@ -244,7 +280,7 @@ class DataService {
           template: c.template_html || "",
           defaults: c.defaults_json || {},
         })),
-        pageTemplates: (Array.isArray(variantRows) ? variantRows : []).map((v) => ({
+        pageTemplates: (variantRows || []).map((v) => ({
           id: v.variant_key,
           name: v.name,
           description: v.description,
@@ -263,21 +299,24 @@ class DataService {
    */
   async getPageList(workspaceId) {
     try {
-      const response = await this.secureSelect({
-        data_json: {
-          table_name: "pages",
-          request: { workspace_guid: workspaceId, is_deleted: false },
-        },
-      });
-      const rows = response.data?.data || response.data || [];
-      return (Array.isArray(rows) ? rows : []).map((p) => ({
-        postId: p.wp_post_id || p.id,
+      const rows = await this.selectRows(
+        "bizfire_page_contents",
+        "row_guid,post_id,slug,title,status,template_slug,last_saved_at,last_published_at",
+        [
+          { Operand: "eq", UIKey: "workspace_guid", Value: workspaceId },
+          { Operand: "eq", UIKey: "is_deleted", Value: "false" },
+        ],
+        [{ UIKey: "post_id", Direction: "ASC" }]
+      );
+
+      return (rows || []).map((p) => ({
+        postId: p.post_id || p.row_guid,
         slug: p.slug,
         title: p.title,
-        templateId: p.variant_guid || p.page_type_guid || "service-standard",
-        lastSavedAt: p.last_saved_at || p.updated_on,
+        templateId: p.template_slug || "service-standard",
+        lastSavedAt: p.last_saved_at,
         lastPublishedAt: p.last_published_at,
-        status: p.status,
+        status: p.status || "draft",
       }));
     } catch (err) {
       console.error("Error fetching page list:", err);
@@ -293,57 +332,56 @@ class DataService {
   async getPageContent(workspaceId, postId) {
     try {
       const isNumeric = !isNaN(Number(postId));
-      const requestFilter = {
-        workspace_guid: workspaceId,
-        is_deleted: false,
-      };
+      const filters = [
+        { Operand: "eq", UIKey: "workspace_guid", Value: workspaceId },
+        { Operand: "eq", UIKey: "is_deleted", Value: "false" },
+      ];
+
       if (isNumeric) {
-        requestFilter.wp_post_id = Number(postId);
+        filters.push({ Operand: "eq", UIKey: "post_id", Value: String(postId) });
       } else {
-        requestFilter.import_key = String(postId);
+        filters.push({ Operand: "eq", UIKey: "slug", Value: String(postId) });
       }
 
-      let response = await this.secureSelect({
-        data_json: {
-          table_name: "pages",
-          request: requestFilter,
-        },
-      });
-      let rows = response.data?.data || response.data || [];
-      let page = Array.isArray(rows) ? rows[0] : rows;
+      let rows = await this.selectRows(
+        "bizfire_page_contents",
+        "row_guid,post_id,slug,title,status,template_slug,sections_json,compiled_html,last_saved_at,last_published_at,live_url,wp_sync_status",
+        filters,
+        [{ UIKey: "row_guid", Direction: "ASC" }]
+      );
+      let page = rows[0];
 
-      // Fallback: search by id if not matched by wp_post_id or import_key
-      if (!page && isNumeric) {
-        response = await this.secureSelect({
-          data_json: {
-            table_name: "pages",
-            request: {
-              workspace_guid: workspaceId,
-              id: Number(postId),
-              is_deleted: false,
-            },
-          },
-        });
-        rows = response.data?.data || response.data || [];
-        page = Array.isArray(rows) ? rows[0] : rows;
+      // Fallback: search by row_guid
+      if (!page && !isNumeric) {
+        rows = await this.selectRows(
+          "bizfire_page_contents",
+          "row_guid,post_id,slug,title,status,template_slug,sections_json,compiled_html,last_saved_at,last_published_at,live_url,wp_sync_status",
+          [
+            { Operand: "eq", UIKey: "workspace_guid", Value: workspaceId },
+            { Operand: "eq", UIKey: "row_guid", Value: String(postId) },
+            { Operand: "eq", UIKey: "is_deleted", Value: "false" },
+          ],
+          [{ UIKey: "row_guid", Direction: "ASC" }]
+        );
+        page = rows[0];
       }
 
       if (!page) return null;
 
       return {
-        postId: page.wp_post_id || page.id,
-        pageGuid: page.page_guid,
+        postId: page.post_id || page.row_guid,
+        pageGuid: page.row_guid,
         rowGuid: page.row_guid,
         slug: page.slug,
         title: page.title,
-        templateId: page.variant_guid || "service-standard",
-        lastSavedAt: page.last_saved_at || page.updated_on,
+        templateId: page.template_slug || "service-standard",
+        lastSavedAt: page.last_saved_at,
         lastPublishedAt: page.last_published_at,
         status: page.status,
-        sections: page.content_json || [],
+        sections: page.sections_json || [],
         compiledHtml: page.compiled_html || "",
-        seoJson: page.seo_json || {},
-        analysisJson: page.analysis_json || {},
+        liveUrl: page.live_url || "",
+        wpSyncStatus: page.wp_sync_status || "synced",
       };
     } catch (err) {
       console.error("Error fetching page content:", err);
@@ -366,27 +404,28 @@ class DataService {
       });
 
       const isNumeric = !isNaN(Number(postId));
+      const now = new Date().toISOString();
       const payload = {
         workspace_guid: workspaceId,
+        theme_guid: "a1000000-0000-0000-0000-000000000001",
         slug: pageData.slug,
         title: pageData.title,
-        content_json: cleanSections,
+        template_slug: pageData.templateId || "service-standard",
+        sections_json: cleanSections,
         status: pageData.status || "draft",
-        last_saved_at: new Date().toISOString(),
-        updated_on: new Date().toISOString(),
+        last_saved_at: now,
+        updated_on: now,
+        is_deleted: false,
       };
 
       if (isNumeric) {
-        payload.wp_post_id = Number(postId);
-      } else {
-        payload.import_key = String(postId);
+        payload.post_id = Number(postId);
+      }
+      if (pageData.rowGuid || pageData.pageGuid) {
+        payload.row_guid = pageData.rowGuid || pageData.pageGuid;
       }
 
-      return await this.mergeWithCompositeKeys(
-        payload,
-        "pages",
-        ["workspace_guid", "slug"]
-      );
+      return await this.merge([payload], "bizfire_page_contents");
     } catch (err) {
       console.error("Error saving page content:", err);
       throw err;
@@ -403,6 +442,7 @@ class DataService {
       const now = new Date().toISOString();
       const payload = {
         workspace_guid: workspaceId,
+        theme_guid: "a1000000-0000-0000-0000-000000000001",
         slug: publishData.slug,
         compiled_html: publishData.compiledHtml,
         status: "published",
@@ -411,20 +451,51 @@ class DataService {
         wp_sync_status: publishData.wpSyncStatus || "synced",
         wp_sync_error: publishData.wpSyncError || null,
         updated_on: now,
-        updated_at: now,
+        is_deleted: false,
       };
 
       if (publishData.postId && !isNaN(Number(publishData.postId))) {
-        payload.wp_post_id = Number(publishData.postId);
+        payload.post_id = Number(publishData.postId);
       }
 
-      return await this.mergeWithCompositeKeys(
-        payload,
-        "pages",
-        ["workspace_guid", "slug"]
-      );
+      return await this.merge([payload], "bizfire_page_contents");
     } catch (err) {
       console.error("Error updating page publish status:", err);
+      throw err;
+    }
+  }
+
+  /**
+   * Record snapshot entry in publications table
+   * @param {Object} publicationRecord
+   */
+  async recordPublication(publicationRecord) {
+    try {
+      return await this.secureInsert(publicationRecord, "publications");
+    } catch (err) {
+      console.error("Error recording publication snapshot:", err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Atomically clone master theme to workspace
+   * @param {string} masterThemeSlug e.g. 'trades-modern'
+   * @param {string} workspaceId
+   * @param {string} userEmail
+   */
+  async cloneTheme(masterThemeSlug, workspaceId, userEmail = "system") {
+    try {
+      return await this.secureInvokeCustomSP({
+        sp_name: "sp_bizfire_clone_theme_to_workspace",
+        parameters: {
+          p_master_theme_slug: masterThemeSlug,
+          p_workspace_guid: workspaceId,
+          p_user: userEmail,
+        },
+      });
+    } catch (err) {
+      console.error("Error cloning theme to workspace:", err);
       throw err;
     }
   }

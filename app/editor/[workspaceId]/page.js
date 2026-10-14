@@ -1,6 +1,6 @@
-import { notFound } from 'next/navigation';
-import { DataSource } from '../../../lib/dataSource.js';
-import WorkspacePageList from './WorkspacePageList';
+import { notFound } from "next/navigation";
+import { DataSource } from "../../../lib/dataSource.js";
+import WorkspacePageList from "./WorkspacePageList";
 
 export default async function WorkspacePagesPage({ params }) {
   const { workspaceId } = await params;
