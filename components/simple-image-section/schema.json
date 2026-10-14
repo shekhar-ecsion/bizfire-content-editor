@@ -1,0 +1,5 @@
+{
+  "title": { "type": "text", "label": "Title", "required": true },
+  "subtitle": { "type": "text", "label": "Subtitle" },
+  "image": { "type": "image", "label": "Image" }
+}

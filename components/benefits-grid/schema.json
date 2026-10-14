@@ -1,0 +1,7 @@
+{
+  "title": { "type": "text", "label": "Title", "required": true },
+  "subtitle": { "type": "text", "label": "Subtitle" },
+  "item1": { "type": "text", "label": "Benefit 1" },
+  "item2": { "type": "text", "label": "Benefit 2" },
+  "item3": { "type": "text", "label": "Benefit 3" }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "Dental Services Cards",
+  "category": "Services",
+  "description": "Grid of dental treatments and procedures with icons and descriptions.",
+  "fields": {
+    "kicker": {
+      "type": "text",
+      "label": "Section Tag",
+      "default": "COMPREHENSIVE TREATMENTS"
+    },
+    "title": {
+      "type": "text",
+      "label": "Heading",
+      "default": "Complete Dental Solutions Under One Roof"
+    },
+    "subtitle": {
+      "type": "textarea",
+      "label": "Subheading",
+      "default": "From preventive checkups to complex cosmetic transformations, we provide tailored treatments designed for lasting smiles."
+    },
+    "items": {
+      "type": "array",
+      "label": "Services List",
+      "labelField": "title",
+      "itemSchema": {
+        "icon": {
+          "type": "text",
+          "label": "Icon / Emoji",
+          "default": "🦷"
+        },
+        "title": {
+          "type": "text",
+          "label": "Service Name",
+          "default": "General Cleaning"
+        },
+        "description": {
+          "type": "textarea",
+          "label": "Service Description",
+          "default": "Thorough dental hygiene and tartar removal."
+        }
+      }
+    }
+  }
+}

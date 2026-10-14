@@ -1,0 +1,37 @@
+{
+  "kicker": "MEET OUR SPECIALISTS",
+  "title": "Compassionate Doctors Dedicated to Your Comfort",
+  "subtitle": "Our board-certified dentists bring over 40 combined years of specialized care with a gentle touch.",
+  "members": [
+    {
+      "_id": "doc_01",
+      "name": "Dr. Sarah Mitchell, DDS",
+      "role": "Lead Cosmetic & Restorative Dentist",
+      "bio": "Graduate of Columbia Dental Medicine with 14+ years pioneering painless laser dentistry.",
+      "photo": {
+        "src": "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=600&q=80",
+        "alt": "Dr. Sarah Mitchell smiling in lab coat"
+      }
+    },
+    {
+      "_id": "doc_02",
+      "name": "Dr. David Patel, DMD",
+      "role": "Oral Surgeon & Implantologist",
+      "bio": "Fellow of the International Congress of Oral Implantologists with 2,000+ successful implant procedures.",
+      "photo": {
+        "src": "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=600&q=80",
+        "alt": "Dr. David Patel portrait"
+      }
+    },
+    {
+      "_id": "doc_03",
+      "name": "Dr. Elena Rostova, DDS",
+      "role": "Pediatric & Family Dentist",
+      "bio": "Specialized in anxiety-free dentistry for kids and families with a warm, caring approach.",
+      "photo": {
+        "src": "https://images.unsplash.com/photo-1594824813583-490356501a4e?auto=format&fit=crop&w=600&q=80",
+        "alt": "Dr. Elena Rostova portrait"
+      }
+    }
+  ]
+}

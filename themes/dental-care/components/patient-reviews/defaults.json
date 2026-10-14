@@ -1,0 +1,28 @@
+{
+  "kicker": "PATIENT STORIES",
+  "title": "Loved by Over 3,500 Happy Smiles",
+  "subtitle": "Read real experiences from patients who conquered dental fear and restored their confidence.",
+  "reviews": [
+    {
+      "_id": "rev_01",
+      "author": "Emily Richardson",
+      "treatment": "Porcelain Veneers & Whitening",
+      "stars": "★★★★★",
+      "quote": "I hid my smile in photos for 10 years. Dr. Mitchell crafted veneers so natural that people just assume I have great genetics. Life-changing experience!"
+    },
+    {
+      "_id": "rev_02",
+      "author": "Mark Henderson",
+      "treatment": "Emergency Dental Implant",
+      "stars": "★★★★★",
+      "quote": "Broke a front molar during a weekend biking trip. Called their emergency line, was in the chair within an hour, and left pain-free. Outstanding team."
+    },
+    {
+      "_id": "rev_03",
+      "author": "Sophia Lin",
+      "treatment": "Family Preventive Care",
+      "stars": "★★★★★",
+      "quote": "My kids used to scream before dentists. Here they watch cartoons with noise-cancelling headphones and get excited about appointments. 10/10!"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+<section class="dental-services">
+  <div class="dental-services__header">
+    {{#if kicker}}
+    <div class="dental-services__kicker">{{kicker}}</div>
+    {{/if}}
+    <h2 class="dental-services__title">{{title}}</h2>
+    <p class="dental-services__subtitle">{{subtitle}}</p>
+  </div>
+  <div class="dental-services__grid">
+    {{#each items}}
+    <div class="dental-service-card">
+      <div class="dental-service-card__icon">{{icon}}</div>
+      <h3 class="dental-service-card__title">{{title}}</h3>
+      <p class="dental-service-card__desc">{{description}}</p>
+    </div>
+    {{/each}}
+  </div>
+</section>

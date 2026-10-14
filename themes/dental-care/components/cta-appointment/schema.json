@@ -1,0 +1,32 @@
+{
+  "name": "Appointment Booking Banner",
+  "category": "Call to Action",
+  "description": "High-converting healthcare booking banner with phone availability guarantee.",
+  "fields": {
+    "title": {
+      "type": "text",
+      "label": "Heading",
+      "default": "Ready for a Healthier, Brighter Smile?"
+    },
+    "subtitle": {
+      "type": "textarea",
+      "label": "Subheading",
+      "default": "Book your comprehensive dental checkup and 3D digital scan today. New patient special packages available."
+    },
+    "buttonText": {
+      "type": "text",
+      "label": "Button Text",
+      "default": "Reserve Your Appointment Now"
+    },
+    "buttonUrl": {
+      "type": "text",
+      "label": "Button Link",
+      "default": "#book-now"
+    },
+    "note": {
+      "type": "text",
+      "label": "Guarantee / Hours Note",
+      "default": "Open Monday–Saturday | Most PPO Insurances Accepted"
+    }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "name": "Dentists & Team Showcase",
+  "category": "Team",
+  "description": "Showcase of clinic dentists, credentials, specialties, and doctor photos.",
+  "fields": {
+    "kicker": {
+      "type": "text",
+      "label": "Section Tag",
+      "default": "MEET OUR SPECIALISTS"
+    },
+    "title": {
+      "type": "text",
+      "label": "Heading",
+      "default": "Compassionate Doctors Dedicated to Your Comfort"
+    },
+    "subtitle": {
+      "type": "textarea",
+      "label": "Subheading",
+      "default": "Our board-certified dentists bring over 40 combined years of specialized care with a gentle touch."
+    },
+    "members": {
+      "type": "array",
+      "label": "Dentist Profiles",
+      "labelField": "name",
+      "itemSchema": {
+        "name": {
+          "type": "text",
+          "label": "Doctor Name",
+          "default": "Dr. Sarah Mitchell, DDS"
+        },
+        "role": {
+          "type": "text",
+          "label": "Specialty & Credentials",
+          "default": "Lead Cosmetic Dentist"
+        },
+        "bio": {
+          "type": "textarea",
+          "label": "Short Bio",
+          "default": "Specializes in smile design with over 15 years in restorative prosthodontics."
+        },
+        "photo": {
+          "type": "image",
+          "label": "Doctor Portrait",
+          "default": {
+            "src": "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=600&q=80",
+            "alt": "Dr. Sarah Mitchell portrait"
+          }
+        }
+      }
+    }
+  }
+}

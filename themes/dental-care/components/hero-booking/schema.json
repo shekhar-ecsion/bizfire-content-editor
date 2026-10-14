@@ -1,0 +1,51 @@
+{
+  "name": "Hero with Booking CTA",
+  "category": "Hero",
+  "description": "Healthcare hero section with headline, primary booking button, phone CTA, and featured clinic image.",
+  "fields": {
+    "badge": {
+      "type": "text",
+      "label": "Eyebrow Badge",
+      "default": "ACCEPTING NEW PATIENTS"
+    },
+    "title": {
+      "type": "text",
+      "label": "Headline",
+      "default": "Gentle, Modern Dental Care for Your Entire Family"
+    },
+    "subtitle": {
+      "type": "textarea",
+      "label": "Subheading",
+      "default": "Experience comfortable dentistry with state-of-the-art technology, compassionate specialists, and transparent care."
+    },
+    "buttonText": {
+      "type": "text",
+      "label": "Primary Button Text",
+      "default": "Book Appointment Online"
+    },
+    "buttonUrl": {
+      "type": "text",
+      "label": "Primary Button URL",
+      "default": "#book"
+    },
+    "secondaryText": {
+      "type": "text",
+      "label": "Secondary Button Text",
+      "default": "Call (555) 019-2834"
+    },
+    "secondaryUrl": {
+      "type": "text",
+      "label": "Secondary Button URL",
+      "default": "tel:5550192834"
+    },
+    "image": {
+      "type": "image",
+      "label": "Hero Clinic Image",
+      "aspectRatio": "4:3",
+      "default": {
+        "src": "https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=1200&q=80",
+        "alt": "Modern dental clinic examination room"
+      }
+    }
+  }
+}

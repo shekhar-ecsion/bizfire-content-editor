@@ -1,0 +1,13 @@
+{
+  "id": "general-practice",
+  "name": "General Dental Practice Layout",
+  "pageType": "service",
+  "description": "Full-funnel healthcare layout: Hero with direct booking, 4-tier service grid, doctor team showcase, social proof, and closing appointment CTA.",
+  "components": [
+    { "type": "hero-booking" },
+    { "type": "services-cards" },
+    { "type": "team-showcase" },
+    { "type": "patient-reviews" },
+    { "type": "cta-appointment" }
+  ]
+}

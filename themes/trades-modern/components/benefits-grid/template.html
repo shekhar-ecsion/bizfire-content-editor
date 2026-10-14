@@ -1,0 +1,16 @@
+<section class="benefits-section">
+  <div class="benefits-section__heading">
+    {{#if eyebrow}}<p class="benefits-section__eyebrow">{{eyebrow}}</p>{{/if}}
+    <h2>{{title}}</h2>
+    {{#if subtitle}}<p class="benefits-section__subtitle">{{subtitle}}</p>{{/if}}
+  </div>
+  <div class="benefits-section__grid">
+    {{#each items}}
+    <article class="benefit-card">
+      {{#if number}}<span class="benefit-card__number">{{number}}</span>{{/if}}
+      <h3>{{title}}</h3>
+      {{#if description}}<p>{{description}}</p>{{/if}}
+    </article>
+    {{/each}}
+  </div>
+</section>

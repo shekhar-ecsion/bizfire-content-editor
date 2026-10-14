@@ -1,0 +1,12 @@
+{
+  "id": "emergency-dental",
+  "name": "Emergency Dental Care Layout",
+  "pageType": "service",
+  "description": "High-urgency emergency dentist layout with immediate phone trigger, emergency services, and urgent patient proof.",
+  "components": [
+    { "type": "hero-booking" },
+    { "type": "cta-appointment" },
+    { "type": "services-cards" },
+    { "type": "patient-reviews" }
+  ]
+}

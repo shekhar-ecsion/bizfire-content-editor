@@ -1,0 +1,22 @@
+<section class="testimonials-section">
+  <div class="testimonials-section__heading">
+    {{#if eyebrow}}<p class="testimonials-section__eyebrow">{{eyebrow}}</p>{{/if}}
+    <h2>{{title}}</h2>
+    {{#if subtitle}}<p class="testimonials-section__subtitle">{{subtitle}}</p>{{/if}}
+  </div>
+  <div class="testimonials-grid">
+    {{#each items}}
+    <article class="testimonial-card">
+      {{#if rating}}<div class="testimonial-card__rating">{{rating}}</div>{{/if}}
+      <blockquote class="testimonial-card__quote">“{{quote}}”</blockquote>
+      <div class="testimonial-card__footer">
+        <div class="testimonial-card__badge">✓</div>
+        <div class="testimonial-card__meta">
+          <strong class="testimonial-card__author">{{author}}</strong>
+          {{#if role}}<span class="testimonial-card__role">{{role}}</span>{{/if}}
+        </div>
+      </div>
+    </article>
+    {{/each}}
+  </div>
+</section>

@@ -1,0 +1,49 @@
+{
+  "name": "Patient Testimonials & Reviews",
+  "category": "Social Proof",
+  "description": "Verified patient reviews, star ratings, and treatment tags.",
+  "fields": {
+    "kicker": {
+      "type": "text",
+      "label": "Section Tag",
+      "default": "PATIENT STORIES"
+    },
+    "title": {
+      "type": "text",
+      "label": "Heading",
+      "default": "Loved by Over 3,500 Happy Smiles"
+    },
+    "subtitle": {
+      "type": "textarea",
+      "label": "Subheading",
+      "default": "Read real experiences from patients who conquered dental fear and restored their confidence."
+    },
+    "reviews": {
+      "type": "array",
+      "label": "Reviews List",
+      "labelField": "author",
+      "itemSchema": {
+        "author": {
+          "type": "text",
+          "label": "Patient Name",
+          "default": "Emily Richardson"
+        },
+        "treatment": {
+          "type": "text",
+          "label": "Treatment Received",
+          "default": "Cosmetic Veneers"
+        },
+        "stars": {
+          "type": "text",
+          "label": "Star Rating",
+          "default": "★★★★★"
+        },
+        "quote": {
+          "type": "textarea",
+          "label": "Review Text",
+          "default": "I used to hide my teeth in photos. Dr. Mitchell completely transformed my smile with zero pain!"
+        }
+      }
+    }
+  }
+}

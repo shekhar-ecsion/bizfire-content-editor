@@ -1,0 +1,20 @@
+{
+  "name": "Customer Testimonials",
+  "category": "Social Proof",
+  "fields": {
+    "eyebrow": { "type": "text", "label": "Eyebrow Badge", "default": "REVIEWS & TRUST" },
+    "title": { "type": "text", "label": "Heading", "required": true, "default": "What Princeton Homeowners Say" },
+    "subtitle": { "type": "textarea", "label": "Subtitle", "default": "Over 1,200 verified reviews from families across Mercer County." },
+    "items": {
+      "type": "array",
+      "label": "Testimonials",
+      "labelField": "author",
+      "itemSchema": {
+        "author": { "type": "text", "label": "Customer Name", "required": true },
+        "role": { "type": "text", "label": "Location / Customer Type" },
+        "rating": { "type": "text", "label": "Rating (e.g. ★★★★★)" },
+        "quote": { "type": "textarea", "label": "Review Quote", "required": true }
+      }
+    }
+  }
+}

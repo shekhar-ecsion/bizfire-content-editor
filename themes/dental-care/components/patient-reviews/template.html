@@ -1,0 +1,18 @@
+<section class="dental-reviews">
+  <div class="dental-services__header">
+    {{#if kicker}}
+    <div class="dental-services__kicker">{{kicker}}</div>
+    {{/if}}
+    <h2 class="dental-services__title">{{title}}</h2>
+    <p class="dental-services__subtitle">{{subtitle}}</p>
+  </div>
+  <div class="dental-reviews__grid">
+    {{#each reviews}}
+    <div class="dental-review-card">
+      <div class="dental-review-stars">{{stars}}</div>
+      <p class="dental-review-text">“{{quote}}”</p>
+      <div class="dental-review-author">— {{author}} <small style="display:block;color:var(--dental-muted);font-weight:normal;margin-top:2px;">{{treatment}}</small></div>
+    </div>
+    {{/each}}
+  </div>
+</section>

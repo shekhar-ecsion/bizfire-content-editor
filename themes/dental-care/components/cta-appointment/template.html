@@ -1,0 +1,14 @@
+<section class="dental-cta">
+  <div class="dental-cta__container">
+    <h2 class="dental-cta__title">{{title}}</h2>
+    <p class="dental-cta__subtitle">{{subtitle}}</p>
+    {{#if buttonText}}
+    <a href="{{buttonUrl}}" class="dental-cta__btn">
+      <span>📅</span> {{buttonText}}
+    </a>
+    {{/if}}
+    {{#if note}}
+    <p style="margin-top: 20px; font-size: 0.88rem; color: #ccfbf1; opacity: 0.9;">{{note}}</p>
+    {{/if}}
+  </div>
+</section>

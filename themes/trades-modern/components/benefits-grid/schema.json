@@ -1,0 +1,19 @@
+{
+  "name": "Benefits Grid",
+  "category": "Features",
+  "fields": {
+    "eyebrow": { "type": "text", "label": "Eyebrow Badge", "default": "WHY CHOOSE US" },
+    "title": { "type": "text", "label": "Heading", "required": true, "default": "Straightforward Service Homeowners Count On" },
+    "subtitle": { "type": "textarea", "label": "Subtitle", "default": "We treat your home with respect and give you upfront pricing before any work starts." },
+    "items": {
+      "type": "array",
+      "label": "Benefit Cards",
+      "labelField": "title",
+      "itemSchema": {
+        "number": { "type": "text", "label": "Number Badge (e.g. 01)" },
+        "title": { "type": "text", "label": "Card Title", "required": true },
+        "description": { "type": "textarea", "label": "Description" }
+      }
+    }
+  }
+}

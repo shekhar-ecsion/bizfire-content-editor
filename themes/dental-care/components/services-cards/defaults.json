@@ -1,0 +1,31 @@
+{
+  "kicker": "COMPREHENSIVE TREATMENTS",
+  "title": "Complete Dental Solutions Under One Roof",
+  "subtitle": "From preventive checkups to complex cosmetic transformations, we provide tailored treatments designed for lasting smiles.",
+  "items": [
+    {
+      "_id": "srv_01",
+      "icon": "🦷",
+      "title": "Preventive & Hygiene",
+      "description": "Routine cleanings, digital 3D scans, and thorough fluoride treatments to keep gums strong and decay away."
+    },
+    {
+      "_id": "srv_02",
+      "icon": "✨",
+      "title": "Cosmetic Veneers & Whitening",
+      "description": "Custom porcelain veneers and in-office LED laser whitening for a bright, confidence-boosting smile."
+    },
+    {
+      "_id": "srv_03",
+      "icon": "🛡️",
+      "title": "Dental Implants",
+      "description": "Permanent tooth replacement with precision-guided titanium posts and natural lifelike zirconia crowns."
+    },
+    {
+      "_id": "srv_04",
+      "icon": "🚨",
+      "title": "Emergency Care",
+      "description": "Same-day relief for broken teeth, unbearable toothaches, and dental trauma when you need it immediately."
+    }
+  ]
+}

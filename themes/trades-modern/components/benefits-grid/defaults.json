@@ -1,0 +1,25 @@
+{
+  "eyebrow": "WHY CHOOSE US",
+  "title": "Straightforward Service Homeowners Count On",
+  "subtitle": "We treat your home with respect and give you upfront pricing before any work starts.",
+  "items": [
+    {
+      "_id": "ben-01",
+      "number": "01",
+      "title": "45-Minute Dispatch",
+      "description": "Fast local response when your AC fails during summer heat waves."
+    },
+    {
+      "_id": "ben-02",
+      "number": "02",
+      "title": "Licensed & Insured",
+      "description": "Background-checked, master technicians with 10+ years experience."
+    },
+    {
+      "_id": "ben-03",
+      "number": "03",
+      "title": "Flat-Rate Pricing",
+      "description": "Zero hidden trip charges, zero overtime penalties, no high pressure."
+    }
+  ]
+}

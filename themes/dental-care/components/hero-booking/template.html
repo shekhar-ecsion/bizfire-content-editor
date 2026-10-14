@@ -1,0 +1,26 @@
+<section class="dental-hero">
+  <div class="dental-hero__container">
+    <div class="dental-hero__content">
+      {{#if badge}}
+      <div class="dental-hero__badge">
+        <span>✨</span> {{badge}}
+      </div>
+      {{/if}}
+      <h1 class="dental-hero__title">{{title}}</h1>
+      <p class="dental-hero__subtitle">{{subtitle}}</p>
+      <div class="dental-hero__actions">
+        {{#if buttonText}}
+        <a href="{{buttonUrl}}" class="dental-btn-primary">{{buttonText}}</a>
+        {{/if}}
+        {{#if secondaryText}}
+        <a href="{{secondaryUrl}}" class="dental-btn-outline">{{secondaryText}}</a>
+        {{/if}}
+      </div>
+    </div>
+    <div class="dental-hero__image-wrap">
+      {{#if image.src}}
+      <img src="{{image.src}}" alt="{{image.alt}}" loading="lazy" />
+      {{/if}}
+    </div>
+  </div>
+</section>

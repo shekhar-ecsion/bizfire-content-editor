@@ -1,0 +1,12 @@
+{
+  "name": "Split Hero with Image",
+  "category": "Hero",
+  "fields": {
+    "eyebrow": { "type": "text", "label": "Eyebrow Badge", "default": "24/7 EMERGENCY DISPATCH" },
+    "title": { "type": "text", "label": "Main Heading", "required": true, "default": "AC Repair & Cooling Service in Princeton" },
+    "subtitle": { "type": "textarea", "label": "Subtitle", "default": "Fast, honest technicians on call. Flat-rate pricing with no surprise overtime fees." },
+    "buttonText": { "type": "text", "label": "Button Label", "default": "Call (609) 555-0198" },
+    "buttonUrl": { "type": "text", "label": "Button URL", "default": "tel:6095550198" },
+    "image": { "type": "image", "label": "Hero Image", "aspectRatio": "16:9" }
+  }
+}
