@@ -153,13 +153,22 @@ class DataService {
       const ws = Array.isArray(data) ? data[0] : data;
       return {
         workspaceId: ws?.workspace_guid || workspaceId,
-        clientName: ws?.workspace_name || "Client Site",
+        clientName: ws?.workspace_name || "Princeton Comfort HVAC",
         themeId: ws?.data_json?.themeId || "trades-modern",
-        wpSiteUrl: ws?.site_url || "",
+        wpSiteUrl: ws?.site_url || process.env.NEXT_PUBLIC_WORDPRESS_URL || "",
+        wpUser: ws?.data_json?.wpUser || "",
+        wpAppPassword: ws?.data_json?.wpAppPassword || "",
       };
     } catch (err) {
-      console.error("Error fetching workspace metadata:", err);
-      throw err;
+      console.warn("Could not fetch workspace from user_workspaces, using default context:", err.message);
+      return {
+        workspaceId,
+        clientName: "Princeton Comfort HVAC",
+        themeId: "trades-modern",
+        wpSiteUrl: process.env.NEXT_PUBLIC_WORDPRESS_URL || "",
+        wpUser: "",
+        wpAppPassword: "",
+      };
     }
   }
 
@@ -323,6 +332,8 @@ class DataService {
 
       return {
         postId: page.wp_post_id || page.id,
+        pageGuid: page.page_guid,
+        rowGuid: page.row_guid,
         slug: page.slug,
         title: page.title,
         templateId: page.variant_guid || "service-standard",
@@ -379,6 +390,55 @@ class DataService {
     } catch (err) {
       console.error("Error saving page content:", err);
       throw err;
+    }
+  }
+
+  /**
+   * Update page publish status, compiled HTML, and live URL in PostgreSQL
+   * @param {string} workspaceId
+   * @param {Object} publishData
+   */
+  async updatePagePublishStatus(workspaceId, publishData) {
+    try {
+      const now = new Date().toISOString();
+      const payload = {
+        workspace_guid: workspaceId,
+        slug: publishData.slug,
+        compiled_html: publishData.compiledHtml,
+        status: "published",
+        last_published_at: publishData.publishedAt || now,
+        live_url: publishData.liveUrl || "",
+        wp_sync_status: publishData.wpSyncStatus || "synced",
+        wp_sync_error: publishData.wpSyncError || null,
+        updated_on: now,
+        updated_at: now,
+      };
+
+      if (publishData.postId && !isNaN(Number(publishData.postId))) {
+        payload.wp_post_id = Number(publishData.postId);
+      }
+
+      return await this.mergeWithCompositeKeys(
+        payload,
+        "pages",
+        ["workspace_guid", "slug"]
+      );
+    } catch (err) {
+      console.error("Error updating page publish status:", err);
+      throw err;
+    }
+  }
+
+  /**
+   * Record snapshot entry in publications table
+   * @param {Object} publicationRecord
+   */
+  async recordPublication(publicationRecord) {
+    try {
+      return await this.secureInsert(publicationRecord, "publications");
+    } catch (err) {
+      console.error("Error recording publication snapshot:", err);
+      return { success: false, error: err.message };
     }
   }
 
