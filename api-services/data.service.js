@@ -425,7 +425,14 @@ class DataService {
         payload.row_guid = pageData.rowGuid || pageData.pageGuid;
       }
 
-      return await this.merge([payload], "bizfire_page_contents");
+      const response = await this.merge([payload], "bizfire_page_contents");
+      return {
+        success: response.data?.status === "success" || response.status === 200,
+        savedAt: now,
+        postId: payload.post_id || postId,
+        slug: payload.slug,
+        title: payload.title,
+      };
     } catch (err) {
       console.error("Error saving page content:", err);
       throw err;
@@ -458,7 +465,14 @@ class DataService {
         payload.post_id = Number(publishData.postId);
       }
 
-      return await this.merge([payload], "bizfire_page_contents");
+      const response = await this.merge([payload], "bizfire_page_contents");
+      return {
+        success: response.data?.status === "success" || response.status === 200,
+        publishedAt: payload.last_published_at,
+        postId: payload.post_id,
+        slug: payload.slug,
+        liveUrl: payload.live_url,
+      };
     } catch (err) {
       console.error("Error updating page publish status:", err);
       throw err;
@@ -471,7 +485,12 @@ class DataService {
    */
   async recordPublication(publicationRecord) {
     try {
-      return await this.secureInsert(publicationRecord, "publications");
+      const response = await this.secureInsert(publicationRecord, "publications");
+      return {
+        success: response.data?.status === "success" || response.status === 200,
+        publicationGuid: publicationRecord.publication_guid,
+        error: response.data?.errorMessage || null,
+      };
     } catch (err) {
       console.error("Error recording publication snapshot:", err);
       return { success: false, error: err.message };
@@ -486,7 +505,7 @@ class DataService {
    */
   async cloneTheme(masterThemeSlug, workspaceId, userEmail = "system") {
     try {
-      return await this.secureInvokeCustomSP({
+      const response = await this.secureInvokeCustomSP({
         sp_name: "sp_bizfire_clone_theme_to_workspace",
         parameters: {
           p_master_theme_slug: masterThemeSlug,
@@ -494,41 +513,7 @@ class DataService {
           p_user: userEmail,
         },
       });
-    } catch (err) {
-      console.error("Error cloning theme to workspace:", err);
-      throw err;
-    }
-  }
-
-  /**
-   * Record snapshot entry in publications table
-   * @param {Object} publicationRecord
-   */
-  async recordPublication(publicationRecord) {
-    try {
-      return await this.secureInsert(publicationRecord, "publications");
-    } catch (err) {
-      console.error("Error recording publication snapshot:", err);
-      return { success: false, error: err.message };
-    }
-  }
-
-  /**
-   * Atomically clone master theme to workspace
-   * @param {string} masterThemeSlug e.g. 'trades-modern'
-   * @param {string} workspaceId
-   * @param {string} userEmail
-   */
-  async cloneTheme(masterThemeSlug, workspaceId, userEmail = "system") {
-    try {
-      return await this.secureInvokeCustomSP({
-        sp_name: "sp_bizfire_clone_theme_to_workspace",
-        parameters: {
-          p_master_theme_slug: masterThemeSlug,
-          p_workspace_guid: workspaceId,
-          p_user: userEmail,
-        },
-      });
+      return response.data || { success: true };
     } catch (err) {
       console.error("Error cloning theme to workspace:", err);
       throw err;

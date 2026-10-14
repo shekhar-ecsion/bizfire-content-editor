@@ -32,7 +32,15 @@ export async function POST(request) {
 
     const result = await DataSource.publishPage(workspaceId, postId);
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      success: true,
+      postId,
+      publishedAt: result?.publishedAt || new Date().toISOString(),
+      liveUrl: result?.liveUrl || "",
+      compiledHtml: result?.compiledHtml || "",
+      errors: result?.errors || [],
+      wpSyncStatus: result?.wpSyncStatus || "synced"
+    });
   } catch (error) {
     console.error('API /api/publish error:', error);
     return NextResponse.json(

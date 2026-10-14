@@ -27,7 +27,13 @@ export async function POST(request) {
       sections
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      success: true,
+      postId,
+      savedAt: result?.savedAt || new Date().toISOString(),
+      slug: result?.slug || slug,
+      title: result?.title || title,
+    });
   } catch (error) {
     console.error('API /api/save error:', error);
     return NextResponse.json(
