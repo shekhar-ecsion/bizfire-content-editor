@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"],
+      "@/api-services/*": ["./api-services/*"],
+      "@/lib/*": ["./lib/*"]
+    }
+  }
+}
