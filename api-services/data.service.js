@@ -491,15 +491,69 @@ class DataService {
         payload.post_id = Number(postId);
       }
 
-      // Mandatory row_guid resolution for secure-merge
-      let targetRowGuid =
-        pageData.rowGuid || pageData.pageGuid || pageData.row_guid;
-      if (!targetRowGuid) {
-        const existing = await this.getPageContent(workspaceId, postId);
-        if (existing?.rowGuid) {
-          targetRowGuid = existing.rowGuid;
+      // Mandatory row_guid resolution for secure-merge:
+      // Always look up existing record in PostgreSQL first to prevent duplicate key collisions
+      // on the unique constraint bizfire_page_contents_ws_post_unq (workspace_guid, post_id).
+      let targetRowGuid = null;
+
+      if (isNumeric) {
+        try {
+          const rowsByPostId = await this.selectRows(
+            "bizfire_page_contents",
+            "row_guid,post_id,is_deleted",
+            [
+              { Operand: "eq", UIKey: "workspace_guid", Value: workspaceId },
+              { Operand: "eq", UIKey: "post_id", Value: String(postId) },
+            ],
+            [{ UIKey: "row_guid", Direction: "ASC" }]
+          );
+          if (rowsByPostId?.[0]?.row_guid) {
+            targetRowGuid = rowsByPostId[0].row_guid;
+          }
+        } catch (lookupErr) {
+          console.warn("Could not check existing row by post_id:", lookupErr.message);
         }
       }
+
+      if (!targetRowGuid && (pageData.rowGuid || pageData.pageGuid || pageData.row_guid)) {
+        const proposedGuid = pageData.rowGuid || pageData.pageGuid || pageData.row_guid;
+        try {
+          const rowsByGuid = await this.selectRows(
+            "bizfire_page_contents",
+            "row_guid,post_id,is_deleted",
+            [
+              { Operand: "eq", UIKey: "workspace_guid", Value: workspaceId },
+              { Operand: "eq", UIKey: "row_guid", Value: String(proposedGuid) },
+            ],
+            [{ UIKey: "row_guid", Direction: "ASC" }]
+          );
+          if (rowsByGuid?.[0]?.row_guid) {
+            targetRowGuid = rowsByGuid[0].row_guid;
+          } else {
+            targetRowGuid = proposedGuid;
+          }
+        } catch (_) {
+          targetRowGuid = proposedGuid;
+        }
+      }
+
+      if (!targetRowGuid && pageData.slug) {
+        try {
+          const rowsBySlug = await this.selectRows(
+            "bizfire_page_contents",
+            "row_guid,post_id,is_deleted",
+            [
+              { Operand: "eq", UIKey: "workspace_guid", Value: workspaceId },
+              { Operand: "eq", UIKey: "slug", Value: String(pageData.slug) },
+            ],
+            [{ UIKey: "row_guid", Direction: "ASC" }]
+          );
+          if (rowsBySlug?.[0]?.row_guid) {
+            targetRowGuid = rowsBySlug[0].row_guid;
+          }
+        } catch (_) {}
+      }
+
       if (!targetRowGuid) {
         targetRowGuid =
           typeof crypto !== "undefined" && crypto.randomUUID

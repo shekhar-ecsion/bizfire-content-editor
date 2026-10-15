@@ -13,6 +13,27 @@ export async function POST(request) {
       );
     }
 
+    // Support batch saving if body.pages array is provided
+    if (Array.isArray(body.pages) && body.pages.length > 0) {
+      const results = [];
+      for (const p of body.pages) {
+        if (!p.postId && p.postId !== 0) continue;
+        const saved = await DataSource.savePageContent(workspaceId, p.postId, {
+          rowGuid: p.rowGuid || p.pageGuid,
+          slug: p.slug,
+          title: p.title,
+          templateId: p.templateId || templateId || 'service-standard',
+          sections: p.sections || sections || []
+        });
+        results.push(saved);
+      }
+      return NextResponse.json({
+        success: true,
+        count: results.length,
+        pages: results
+      });
+    }
+
     if (!postId && postId !== 0) {
       return NextResponse.json(
         { error: 'Missing required field: postId' },

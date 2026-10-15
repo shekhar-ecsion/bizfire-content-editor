@@ -4,7 +4,6 @@ import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Handlebars from 'handlebars';
 import ImageCropperModal from './ImageCropperModal';
-import ImportWpPageModal from './ImportWpPageModal';
 
 function generateUniqueId(prefix = 'id') {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -354,7 +353,6 @@ export default function Editor({
 
   const [isLoadingTheme, setIsLoadingTheme] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const library = useMemo(() => Object.fromEntries(components.map(c => [c.id, c])), [components]);
 
@@ -747,15 +745,6 @@ ${renderedSections}
 
               <button
                 type="button"
-                className="btn-secondary"
-                onClick={() => setIsImportModalOpen(true)}
-                title="Import an existing page from your WordPress site"
-              >
-                Import Page ⤓
-              </button>
-
-              <button
-                type="button"
                 className="btn-primary"
                 onClick={handleSave}
                 disabled={isSaving}
@@ -1051,19 +1040,6 @@ ${renderedSections}
           </div>
         </section>
       </div>
-
-      {mode === 'workspace' && (
-        <ImportWpPageModal
-          isOpen={isImportModalOpen}
-          onClose={() => setIsImportModalOpen(false)}
-          workspace={workspace}
-          themeBundle={{
-            theme,
-            components,
-            pageTemplates: initialVariants || []
-          }}
-        />
-      )}
     </main>
   );
 }

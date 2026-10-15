@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import ImportWpPageModal from '../../ImportWpPageModal';
+import ImportWpPageOffcanvas from '../../ImportWpPageOffcanvas';
 
 export default function WorkspacePageList({
   workspace,
@@ -24,8 +24,8 @@ export default function WorkspacePageList({
     themeBundle?.pageTemplates?.[0]?.id || ''
   );
 
-  // Import Existing WP Pages Modal State
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  // Import Existing WP Pages Offcanvas State
+  const [isImportDrawerOpen, setIsImportDrawerOpen] = useState(false);
 
   function handleTitleChange(val) {
     setNewTitle(val);
@@ -157,7 +157,7 @@ export default function WorkspacePageList({
           <button
             type="button"
             className="btn-secondary"
-            onClick={() => setIsImportModalOpen(true)}
+            onClick={() => setIsImportDrawerOpen(true)}
             title="Import an existing page from your WordPress site"
           >
             Import from WordPress ⤓
@@ -217,7 +217,7 @@ export default function WorkspacePageList({
               <button
                 type="button"
                 className="btn-secondary"
-                onClick={() => setIsImportModalOpen(true)}
+                onClick={() => setIsImportDrawerOpen(true)}
               >
                 Import from WordPress ⤓
               </button>
@@ -238,7 +238,7 @@ export default function WorkspacePageList({
                 <button
                   type="button"
                   className="btn-secondary"
-                  onClick={() => setIsImportModalOpen(true)}
+                  onClick={() => setIsImportDrawerOpen(true)}
                 >
                   Import Existing WordPress Page
                 </button>
@@ -307,13 +307,16 @@ export default function WorkspacePageList({
         </section>
       </main>
 
-      {/* Import from WordPress Modal */}
-      <ImportWpPageModal
-        isOpen={isImportModalOpen}
-        onClose={() => setIsImportModalOpen(false)}
+      {/* Import from WordPress Offcanvas Drawer */}
+      <ImportWpPageOffcanvas
+        show={isImportDrawerOpen}
+        onHide={() => setIsImportDrawerOpen(false)}
         workspace={workspace}
         themeBundle={themeBundle}
         existingPostIds={existingPostIds}
+        onImportSuccess={() => {
+          router.refresh();
+        }}
       />
 
       {/* Create New Page Modal */}
