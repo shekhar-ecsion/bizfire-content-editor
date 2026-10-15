@@ -364,7 +364,7 @@ class DataService {
     try {
       const rows = await this.selectRows(
         "bizfire_page_contents",
-        "row_guid,post_id,slug,title,status,template_slug,last_saved_at,last_published_at",
+        "row_guid,post_id,slug,title,status,template_slug,last_saved_at,last_published_at,live_url",
         [
           { Operand: "eq", UIKey: "workspace_guid", Value: workspaceId },
           { Operand: "eq", UIKey: "is_deleted", Value: "false" },
@@ -373,13 +373,14 @@ class DataService {
       );
 
       return (rows || []).map((p) => ({
-        postId: p.post_id || null,
+        postId: p.post_id && Number(p.post_id) > 0 ? Number(p.post_id) : null,
         rowGuid: p.row_guid,
         slug: p.slug,
         title: p.title,
         templateId: p.template_slug || "service-standard",
         lastSavedAt: p.last_saved_at,
         lastPublishedAt: p.last_published_at,
+        liveUrl: p.live_url || null,
         status: p.status || "draft",
       }));
     } catch (err) {
@@ -437,7 +438,10 @@ class DataService {
       if (!page) return null;
 
       return {
-        postId: page.post_id || page.row_guid,
+        postId:
+          page.post_id && Number(page.post_id) > 0
+            ? Number(page.post_id)
+            : page.row_guid,
         pageGuid: page.row_guid,
         rowGuid: page.row_guid,
         slug: page.slug,
@@ -471,7 +475,8 @@ class DataService {
         return rest;
       });
 
-      const isNumeric = !isNaN(Number(postId));
+      const isNumeric = !isNaN(Number(postId)) && Number(postId) > 0;
+      let resolvedPostId = isNumeric ? Number(postId) : null;
       const now = new Date().toISOString();
       const payload = {
         workspace_guid: workspaceId,
@@ -486,10 +491,6 @@ class DataService {
         updated_on: now,
         is_deleted: false,
       };
-
-      if (isNumeric) {
-        payload.post_id = Number(postId);
-      }
 
       // Mandatory row_guid resolution for secure-merge:
       // Always look up existing record in PostgreSQL first to prevent duplicate key collisions
@@ -509,6 +510,7 @@ class DataService {
           );
           if (rowsByPostId?.[0]?.row_guid) {
             targetRowGuid = rowsByPostId[0].row_guid;
+            resolvedPostId = Number(rowsByPostId[0].post_id);
           }
         } catch (lookupErr) {
           console.warn("Could not check existing row by post_id:", lookupErr.message);
@@ -529,6 +531,9 @@ class DataService {
           );
           if (rowsByGuid?.[0]?.row_guid) {
             targetRowGuid = rowsByGuid[0].row_guid;
+            if (!resolvedPostId && rowsByGuid[0].post_id) {
+              resolvedPostId = Number(rowsByGuid[0].post_id);
+            }
           } else {
             targetRowGuid = proposedGuid;
           }
@@ -550,6 +555,9 @@ class DataService {
           );
           if (rowsBySlug?.[0]?.row_guid) {
             targetRowGuid = rowsBySlug[0].row_guid;
+            if (!resolvedPostId && rowsBySlug[0].post_id) {
+              resolvedPostId = Number(rowsBySlug[0].post_id);
+            }
           }
         } catch (_) {}
       }
@@ -562,6 +570,15 @@ class DataService {
       }
       payload.row_guid = targetRowGuid;
 
+      // Ensure post_id satisfies PostgreSQL's NOT NULL constraint on public.bizfire_page_contents:
+      // If this is a draft page with no real WordPress post ID yet, assign a deterministic negative draft ID.
+      if (!resolvedPostId) {
+        const hexPart = targetRowGuid.replace(/-/g, "").slice(0, 8);
+        const draftInt = parseInt(hexPart, 16) || 1;
+        resolvedPostId = -1 * Math.abs(draftInt);
+      }
+      payload.post_id = resolvedPostId;
+
       const response = await this.merge([payload], "bizfire_page_contents");
       if (response.data?.status === "error" || response.data?.errorMessage) {
         throw new Error(
@@ -573,7 +590,7 @@ class DataService {
       return {
         success: true,
         savedAt: now,
-        postId: payload.post_id || postId,
+        postId: payload.post_id > 0 ? payload.post_id : targetRowGuid,
         rowGuid: payload.row_guid,
         slug: payload.slug,
         title: payload.title,
