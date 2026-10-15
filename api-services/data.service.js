@@ -710,6 +710,182 @@ class DataService {
       throw err;
     }
   }
+
+  /**
+   * Fetch Site Header configuration for workspace from public.menus
+   * @param {string} workspaceId
+   */
+  async getHeader(workspaceId) {
+    try {
+      // 1. Query menus table for menu_key = 'header'
+      let rows = await this.selectRows(
+        "menus",
+        "menu_guid,row_guid,workspace_guid,menu_key,name,content_json,is_active",
+        [
+          { Operand: "eq", UIKey: "workspace_guid", Value: workspaceId },
+          { Operand: "eq", UIKey: "menu_key", Value: "header" },
+          { Operand: "eq", UIKey: "is_deleted", Value: "false" },
+        ],
+        [{ UIKey: "row_guid", Direction: "ASC" }],
+        "1",
+        "1"
+      );
+
+      // Fallback: check menu_key = 'primary'
+      if (!rows || rows.length === 0) {
+        rows = await this.selectRows(
+          "menus",
+          "menu_guid,row_guid,workspace_guid,menu_key,name,content_json,is_active",
+          [
+            { Operand: "eq", UIKey: "workspace_guid", Value: workspaceId },
+            { Operand: "eq", UIKey: "menu_key", Value: "primary" },
+            { Operand: "eq", UIKey: "is_deleted", Value: "false" },
+          ],
+          [{ UIKey: "row_guid", Direction: "ASC" }],
+          "1",
+          "1"
+        );
+      }
+
+      if (rows && rows.length > 0 && rows[0].content_json) {
+        const rawJson =
+          typeof rows[0].content_json === "string"
+            ? JSON.parse(rows[0].content_json)
+            : rows[0].content_json;
+
+        return {
+          rowGuid: rows[0].row_guid,
+          menuGuid: rows[0].menu_guid,
+          workspaceId,
+          ...rawJson,
+        };
+      }
+
+      // If no menu row exists yet, generate default configuration
+      const workspace = await this.getWorkspace(workspaceId);
+      const pages = await this.getPageList(workspaceId);
+
+      const defaultItems = [
+        { id: "item-home", label: "Home", url: "/", target: "_self" },
+      ];
+
+      // Automatically add published or existing pages to default menu
+      (pages || []).slice(0, 5).forEach((p, idx) => {
+        if (p.slug && p.slug !== "home") {
+          const cleanSlug = p.slug.replace(/^\//, "").replace(/\/$/, "");
+          defaultItems.push({
+            id: `item-${idx + 1}`,
+            label: p.title || cleanSlug.replace(/-/g, " "),
+            url: `/${cleanSlug}/`,
+            target: "_self",
+            pageKey: cleanSlug,
+          });
+        }
+      });
+
+      return {
+        rowGuid: null,
+        workspaceId,
+        branding: {
+          siteTitle: workspace?.clientName || "WordPress Site",
+          logoUrl: "",
+          logoWidth: 180,
+          tagline: "Quality Service You Can Trust",
+        },
+        contact: {
+          phone: "(609) 555-0100",
+          phoneLabel: "Call Us 24/7",
+          showPhone: true,
+        },
+        cta: {
+          text: "Schedule Service",
+          url: "/contact/",
+          showCta: true,
+        },
+        settings: {
+          isSticky: true,
+          showTopBar: true,
+          topBarText: "Proudly Serving Local Homeowners & Businesses",
+        },
+        items: defaultItems,
+      };
+    } catch (err) {
+      console.error("Error fetching header from menus:", err);
+      return null;
+    }
+  }
+
+  /**
+   * Save Site Header configuration into public.menus
+   * @param {string} workspaceId
+   * @param {object} headerData
+   */
+  async saveHeader(workspaceId, headerData = {}) {
+    try {
+      const now = new Date().toISOString();
+      let targetRowGuid = headerData.rowGuid;
+
+      if (!targetRowGuid) {
+        // Check if a header row already exists
+        const existing = await this.selectRows(
+          "menus",
+          "menu_guid,row_guid,workspace_guid,menu_key",
+          [
+            { Operand: "eq", UIKey: "workspace_guid", Value: workspaceId },
+            { Operand: "eq", UIKey: "menu_key", Value: "header" },
+          ],
+          [{ UIKey: "row_guid", Direction: "ASC" }],
+          "1",
+          "1"
+        );
+        if (existing?.[0]?.row_guid) {
+          targetRowGuid = existing[0].row_guid;
+        } else {
+          targetRowGuid =
+            typeof crypto !== "undefined" && crypto.randomUUID
+              ? crypto.randomUUID()
+              : "b1000000-0000-0000-0000-" + Date.now().toString(16).padStart(12, "0");
+        }
+      }
+
+      const cleanJson = {
+        branding: headerData.branding || {},
+        contact: headerData.contact || {},
+        cta: headerData.cta || {},
+        settings: headerData.settings || {},
+        items: Array.isArray(headerData.items) ? headerData.items : [],
+      };
+
+      const payload = {
+        menu_guid: headerData.menuGuid || targetRowGuid,
+        row_guid: targetRowGuid,
+        workspace_guid: workspaceId,
+        menu_key: "header",
+        name: "Site Header & Navigation",
+        content_json: cleanJson,
+        is_active: true,
+        updated_on: now,
+        is_deleted: false,
+      };
+
+      const response = await this.merge([payload], "menus");
+      if (response.data?.status === "error" || response.data?.errorMessage) {
+        throw new Error(
+          response.data.errorMessage || "Failed to merge header into menus table"
+        );
+      }
+
+      return {
+        success: true,
+        rowGuid: targetRowGuid,
+        savedAt: now,
+        headerData: cleanJson,
+      };
+    } catch (err) {
+      console.error("Error saving header in menus:", err);
+      throw err;
+    }
+  }
 }
 
 const dataService = new DataService();

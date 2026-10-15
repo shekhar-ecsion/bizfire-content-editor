@@ -37,9 +37,105 @@ export default function WorkspacePageList({
   const [selectedKeys, setSelectedKeys] = useState(new Set());
   const [publishingKeys, setPublishingKeys] = useState(new Set());
   const [isPublishing, setIsPublishing] = useState(false);
+  const [publishProgress, setPublishProgress] = useState(null);
   const [publishAlert, setPublishAlert] = useState(null);
+  const [interruptedJob, setInterruptedJob] = useState(null);
 
   const selectAllRef = useRef(null);
+  const abortPublishRef = useRef(false);
+
+  // Check for interrupted publish job on mount or return
+  useEffect(() => {
+    function checkInterruptedJob() {
+      try {
+        const raw = sessionStorage.getItem(`bizfire_publish_job_${workspace.workspaceId}`);
+        if (!raw) return;
+        const job = JSON.parse(raw);
+        if (!job) return;
+
+        const isInterrupted = job.active || job.interrupted || job.wasAborted;
+        const remaining = (job.pagesToPublish || []).filter(
+          p => !(job.completedKeys || []).includes(p.key)
+        );
+
+        if (isInterrupted && remaining.length > 0) {
+          setInterruptedJob({
+            total: job.total || 0,
+            completedCount: (job.completedKeys || []).length,
+            remainingPages: remaining
+          });
+        }
+      } catch (_) {}
+    }
+
+    checkInterruptedJob();
+    window.addEventListener('pageshow', checkInterruptedJob);
+    window.addEventListener('focus', checkInterruptedJob);
+    return () => {
+      window.removeEventListener('pageshow', checkInterruptedJob);
+      window.removeEventListener('focus', checkInterruptedJob);
+    };
+  }, [workspace.workspaceId]);
+
+  // Warn user if reloading or closing window while publishing is active
+  useEffect(() => {
+    if (!isPublishing) return;
+
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = 'Pages are currently being published to WordPress. If you leave now, remaining pages will not be published.';
+      return e.returnValue;
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isPublishing]);
+
+  // Intercept in-app SPA navigation clicks (Next.js Link / internal links)
+  useEffect(() => {
+    if (!isPublishing) return;
+
+    const handleInAppNavigation = (e) => {
+      const anchor = e.target.closest('a');
+      if (!anchor) return;
+
+      // Allow external new-tab links to open without interrupting the current tab's publish queue
+      if (anchor.target === '_blank') return;
+
+      const href = anchor.getAttribute('href');
+      if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+
+      const confirmed = window.confirm(
+        'Pages are currently being published to WordPress.\n\nNavigating away will cancel the remaining pages in the queue.\n\nAre you sure you want to stop publishing and leave?'
+      );
+
+      if (!confirmed) {
+        e.preventDefault();
+        e.stopPropagation();
+      } else {
+        abortPublishRef.current = true;
+        // Explicitly checkpoint sessionStorage as interrupted right now before routing occurs
+        try {
+          const raw = sessionStorage.getItem(`bizfire_publish_job_${workspace.workspaceId}`);
+          if (raw) {
+            const job = JSON.parse(raw);
+            job.interrupted = true;
+            job.wasAborted = true;
+            job.active = false;
+            sessionStorage.setItem(`bizfire_publish_job_${workspace.workspaceId}`, JSON.stringify(job));
+          }
+        } catch (_) {}
+      }
+    };
+
+    // Use capturing phase (true) so we intercept the click BEFORE Next.js Link receives it
+    document.addEventListener('click', handleInAppNavigation, true);
+    return () => {
+      document.removeEventListener('click', handleInAppNavigation, true);
+    };
+  }, [isPublishing, workspace.workspaceId]);
 
   function getPageKey(page) {
     return page.rowGuid || String(page.postId);
@@ -246,14 +342,50 @@ export default function WorkspacePageList({
     );
   }
 
-  // Publish handler (single or batch)
+  function handleCancelPublish() {
+    abortPublishRef.current = true;
+  }
+
+  // Publish handler with sequential queue processing and cancellation
   async function handlePublishPages(pagesToPublish) {
     if (!pagesToPublish || pagesToPublish.length === 0) return;
 
+    abortPublishRef.current = false;
     const targetKeys = new Set(pagesToPublish.map(getPageKey));
-    setPublishingKeys(prev => new Set([...prev, ...targetKeys]));
+    setPublishingKeys(new Set(targetKeys));
     setIsPublishing(true);
     setPublishAlert(null);
+    setInterruptedJob(null);
+
+    const total = pagesToPublish.length;
+    setPublishProgress({
+      current: 1,
+      total,
+      currentTitle: pagesToPublish[0]?.title || pagesToPublish[0]?.slug || 'Page',
+      percent: 0,
+      completedCount: 0,
+      failedCount: 0
+    });
+
+    const sessionKey = `bizfire_publish_job_${workspace.workspaceId}`;
+    const sessionData = {
+      active: true,
+      total,
+      pagesToPublish: pagesToPublish.map(p => ({
+        key: getPageKey(p),
+        title: p.title || p.slug || 'Page',
+        postId: p.postId,
+        rowGuid: p.rowGuid,
+        slug: p.slug,
+        templateId: p.templateId
+      })),
+      completedKeys: [],
+      failedKeys: [],
+      startedAt: new Date().toISOString()
+    };
+    try {
+      sessionStorage.setItem(sessionKey, JSON.stringify(sessionData));
+    } catch (_) {}
 
     try {
       let apiKey = workspace.apiKey || '';
@@ -267,74 +399,132 @@ export default function WorkspacePageList({
         } catch (_) {}
       }
 
-      const payloadPages = pagesToPublish.map(p => ({
-        postId: (p.postId && Number(p.postId) > 0) ? p.postId : undefined,
-        rowGuid: p.rowGuid,
-        slug: p.slug,
-        title: p.title,
-        templateId: p.templateId
-      }));
+      const successfulPages = [];
+      const failedPages = [];
 
-      const res = await fetch('/api/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workspaceId: workspace.workspaceId,
-          apiKey: apiKey || undefined,
-          pages: payloadPages
-        })
-      });
+      for (let i = 0; i < total; i++) {
+        if (abortPublishRef.current) {
+          break;
+        }
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to publish pages');
+        const page = pagesToPublish[i];
+        const pageKey = getPageKey(page);
+
+        setPublishProgress({
+          current: i + 1,
+          total,
+          currentTitle: page.title || page.slug || `Page #${i + 1}`,
+          percent: Math.round((i / total) * 100),
+          completedCount: successfulPages.length,
+          failedCount: failedPages.length
+        });
+
+        try {
+          const res = await fetch('/api/publish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              workspaceId: workspace.workspaceId,
+              apiKey: apiKey || undefined,
+              postId: (page.postId && Number(page.postId) > 0) ? page.postId : undefined,
+              rowGuid: page.rowGuid,
+              slug: page.slug,
+              title: page.title,
+              templateId: page.templateId
+            })
+          });
+
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            throw new Error(data.error || 'Failed to publish page');
+          }
+
+          successfulPages.push({
+            page,
+            postId: data.postId,
+            publishedAt: data.publishedAt,
+            liveUrl: data.liveUrl
+          });
+
+          sessionData.completedKeys.push(pageKey);
+          try {
+            sessionStorage.setItem(sessionKey, JSON.stringify(sessionData));
+          } catch (_) {}
+
+          // Update in-memory state for this page immediately
+          setPages(prevPages => {
+            return prevPages.map(p => {
+              if (getPageKey(p) === pageKey) {
+                return {
+                  ...p,
+                  postId: (data.postId && Number(data.postId) > 0) ? Number(data.postId) : p.postId,
+                  lastPublishedAt: data.publishedAt || new Date().toISOString(),
+                  liveUrl: data.liveUrl || p.liveUrl
+                };
+              }
+              return p;
+            });
+          });
+
+          // Deselect this page from selectedKeys
+          setSelectedKeys(prev => {
+            const next = new Set(prev);
+            next.delete(pageKey);
+            return next;
+          });
+
+        } catch (err) {
+          failedPages.push({
+            page,
+            error: err.message
+          });
+          sessionData.failedKeys.push(pageKey);
+          try {
+            sessionStorage.setItem(sessionKey, JSON.stringify(sessionData));
+          } catch (_) {}
+        } finally {
+          // Remove this key from publishingKeys so inline spinners update
+          setPublishingKeys(prev => {
+            const next = new Set(prev);
+            next.delete(pageKey);
+            return next;
+          });
+        }
       }
 
-      const results = data.results || [];
-      const successfulResults = results.filter(r => r.success);
-      const failedResults = results.filter(r => !r.success);
+      const wasAborted = abortPublishRef.current;
 
-      // Update in-memory pages state immediately
-      setPages(prevPages => {
-        return prevPages.map(page => {
-          const match = successfulResults.find(r => 
-            (r.rowGuid && r.rowGuid === page.rowGuid) || 
-            (r.postId && Number(r.postId) > 0 && Number(r.postId) === Number(page.postId))
-          );
-          if (match) {
-            return {
-              ...page,
-              postId: (match.postId && Number(match.postId) > 0) ? Number(match.postId) : page.postId,
-              lastPublishedAt: match.publishedAt || new Date().toISOString(),
-              liveUrl: match.liveUrl || page.liveUrl
-            };
-          }
-          return page;
-        });
-      });
+      // Mark session status when batch loop finishes
+      if (wasAborted) {
+        sessionData.interrupted = true;
+        sessionData.wasAborted = true;
+        sessionData.active = false;
+        sessionData.finishedAt = new Date().toISOString();
+      } else {
+        sessionData.interrupted = false;
+        sessionData.wasAborted = false;
+        sessionData.active = false;
+        sessionData.finishedAt = new Date().toISOString();
+      }
+      try {
+        sessionStorage.setItem(sessionKey, JSON.stringify(sessionData));
+      } catch (_) {}
 
-      // Deselect successfully published keys
-      setSelectedKeys(prev => {
-        const next = new Set(prev);
-        successfulResults.forEach(r => {
-          const match = pagesToPublish.find(p => 
-            (r.rowGuid && r.rowGuid === p.rowGuid) || 
-            (r.postId && Number(r.postId) > 0 && Number(r.postId) === Number(p.postId))
-          );
-          if (match) next.delete(getPageKey(match));
-        });
-        return next;
-      });
-
-      if (failedResults.length > 0) {
+      if (wasAborted) {
         setPublishAlert({
-          type: successfulResults.length > 0 ? 'warning' : 'danger',
-          message: `${successfulResults.length} page(s) published. ${failedResults.length} page(s) failed: ${failedResults.map(f => f.error || 'Unknown error').join('; ')}`
+          type: 'warning',
+          message: `Publishing stopped by user. ${successfulPages.length} of ${total} page(s) published.` +
+            (failedPages.length > 0 ? ` (${failedPages.length} failed: ${failedPages.map(f => f.error).join('; ')})` : '')
+        });
+      } else if (failedPages.length > 0) {
+        setPublishAlert({
+          type: successfulPages.length > 0 ? 'warning' : 'danger',
+          message: `${successfulPages.length} of ${total} page(s) published successfully. ${failedPages.length} failed: ${failedPages.map(f => `${f.page.title || f.page.slug} (${f.error})`).join('; ')}`
         });
       } else {
         setPublishAlert({
           type: 'success',
-          message: `Successfully published ${successfulResults.length} page${successfulResults.length === 1 ? '' : 's'} to WordPress!`
+          message: `Successfully published ${successfulPages.length} page${successfulPages.length === 1 ? '' : 's'} to WordPress!`
         });
       }
 
@@ -345,12 +535,9 @@ export default function WorkspacePageList({
         message: err.message || 'Failed to publish to WordPress'
       });
     } finally {
-      setPublishingKeys(prev => {
-        const next = new Set(prev);
-        targetKeys.forEach(k => next.delete(k));
-        return next;
-      });
+      setPublishProgress(null);
       setIsPublishing(false);
+      setPublishingKeys(new Set());
     }
   }
 
@@ -379,6 +566,14 @@ export default function WorkspacePageList({
         </div>
 
         <div className="ws-topbar-right">
+          <Link
+            href={`/editor/${workspace.workspaceId}/header`}
+            className="btn btn-outline-primary btn-sm"
+            style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+            title="Edit Site Header & Navigation"
+          >
+            <span>🧭</span> Site Header & Menu
+          </Link>
           {workspace.wpSiteUrl && (
             <a
               href={workspace.wpSiteUrl}
@@ -438,9 +633,18 @@ export default function WorkspacePageList({
               <p>Manage, sort, and publish component-driven pages for this client.</p>
             </div>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <Link
+                href={`/editor/${workspace.workspaceId}/header`}
+                className="btn btn-outline-secondary"
+                style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                title="Configure Site Header and Navigation Menu"
+              >
+                <span>🧭</span> Site Header & Menu
+              </Link>
               <button
                 type="button"
                 className="btn btn-outline-primary"
+                disabled={isPublishing}
                 onClick={() => setIsImportDrawerOpen(true)}
               >
                 Import from WordPress ⤓
@@ -448,6 +652,7 @@ export default function WorkspacePageList({
               <button
                 type="button"
                 className="btn btn-primary"
+                disabled={isPublishing}
                 onClick={() => setIsAddPageDrawerOpen(true)}
               >
                 + Add Page
@@ -555,6 +760,68 @@ export default function WorkspacePageList({
             </div>
           )}
 
+          {/* Interrupted Publish Job Recovery Alert */}
+          {interruptedJob && (
+            <div style={{ padding: '12px 24px 0' }}>
+              <Alert
+                variant="warning"
+                dismissible
+                onClose={() => {
+                  setInterruptedJob(null);
+                  try {
+                    sessionStorage.removeItem(`bizfire_publish_job_${workspace.workspaceId}`);
+                  } catch (_) {}
+                }}
+                className="mb-0"
+                style={{ fontSize: '13px', padding: '12px 16px' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                  <div>
+                    <strong>Publishing was interrupted:</strong> You navigated away while pages were being published.{' '}
+                    <span><strong>{interruptedJob.completedCount}</strong> of <strong>{interruptedJob.total}</strong> pages were published before leaving.</span>
+                    {interruptedJob.remainingPages?.length > 0 && (
+                      <span> <strong>{interruptedJob.remainingPages.length}</strong> pages were not published.</span>
+                    )}
+                  </div>
+                  {interruptedJob.remainingPages?.length > 0 && (
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        onClick={() => {
+                          const remaining = pages.filter(p =>
+                            interruptedJob.remainingPages?.some(r => r.key === getPageKey(p))
+                          );
+                          setInterruptedJob(null);
+                          try {
+                            sessionStorage.removeItem(`bizfire_publish_job_${workspace.workspaceId}`);
+                          } catch (_) {}
+                          handlePublishPages(remaining.length > 0 ? remaining : interruptedJob.remainingPages);
+                        }}
+                        style={{ fontSize: '12px', padding: '2px 10px' }}
+                      >
+                        Resume Publishing Remaining ({interruptedJob.remainingPages.length}) 🚀
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary"
+                        onClick={() => {
+                          setInterruptedJob(null);
+                          try {
+                            sessionStorage.removeItem(`bizfire_publish_job_${workspace.workspaceId}`);
+                          } catch (_) {}
+                        }}
+                        style={{ fontSize: '12px', padding: '2px 8px' }}
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </Alert>
+            </div>
+          )}
+
           {/* Feedback Alerts & Progress Bar */}
           {publishAlert && (
             <div style={{ padding: '12px 24px 0' }}>
@@ -569,9 +836,48 @@ export default function WorkspacePageList({
               </Alert>
             </div>
           )}
-          {isPublishing && (
-            <div style={{ padding: '8px 24px 0' }}>
-              <ProgressBar animated striped variant="success" now={100} style={{ height: '6px' }} />
+          {isPublishing && publishProgress && (
+            <div style={{ padding: '12px 24px 0' }}>
+              <div
+                style={{
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  padding: '12px 16px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '13px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Spinner as="span" animation="border" size="sm" variant="success" role="status" />
+                    <span>
+                      Publishing <strong>{publishProgress.current}</strong> of <strong>{publishProgress.total}</strong>: &ldquo;{publishProgress.currentTitle}&rdquo;
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>
+                      {publishProgress.completedCount} succeeded{publishProgress.failedCount > 0 ? `, ${publishProgress.failedCount} failed` : ''}
+                    </span>
+                    {publishProgress.total > 1 && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-danger"
+                        style={{ fontSize: '11px', padding: '1px 8px' }}
+                        onClick={handleCancelPublish}
+                      >
+                        Stop Publishing
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <ProgressBar
+                  animated
+                  striped
+                  variant="success"
+                  now={publishProgress.percent}
+                  label={`${publishProgress.percent}%`}
+                  style={{ height: '14px', fontSize: '10px', fontWeight: '600' }}
+                />
+              </div>
             </div>
           )}
 
