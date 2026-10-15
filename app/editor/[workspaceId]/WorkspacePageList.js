@@ -574,6 +574,14 @@ export default function WorkspacePageList({
           >
             <span>🧭</span> Site Header & Menu
           </Link>
+          <Link
+            href={`/editor/${workspace.workspaceId}/footer`}
+            className="btn btn-outline-secondary btn-sm"
+            style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+            title="Edit Site Footer & Multi-Column Navigation"
+          >
+            <span>🦶</span> Site Footer
+          </Link>
           {workspace.wpSiteUrl && (
             <a
               href={workspace.wpSiteUrl}
@@ -640,6 +648,14 @@ export default function WorkspacePageList({
                 title="Configure Site Header and Navigation Menu"
               >
                 <span>🧭</span> Site Header & Menu
+              </Link>
+              <Link
+                href={`/editor/${workspace.workspaceId}/footer`}
+                className="btn btn-outline-secondary"
+                style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                title="Configure Site Footer and Multi-Column Navigation"
+              >
+                <span>🦶</span> Site Footer
               </Link>
               <button
                 type="button"

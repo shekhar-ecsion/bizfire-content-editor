@@ -886,6 +886,210 @@ class DataService {
       throw err;
     }
   }
+
+  /**
+   * Fetch Site Footer configuration for workspace from public.menus
+   * @param {string} workspaceId
+   */
+  async getFooter(workspaceId) {
+    try {
+      // 1. Query menus table for menu_key = 'footer'
+      let rows = await this.selectRows(
+        "menus",
+        "menu_guid,row_guid,workspace_guid,menu_key,name,content_json,is_active",
+        [
+          { Operand: "eq", UIKey: "workspace_guid", Value: workspaceId },
+          { Operand: "eq", UIKey: "menu_key", Value: "footer" },
+          { Operand: "eq", UIKey: "is_deleted", Value: "false" },
+        ],
+        [{ UIKey: "row_guid", Direction: "ASC" }],
+        "1",
+        "1"
+      );
+
+      if (rows && rows.length > 0 && rows[0].content_json) {
+        const rawJson =
+          typeof rows[0].content_json === "string"
+            ? JSON.parse(rows[0].content_json)
+            : rows[0].content_json;
+
+        return {
+          rowGuid: rows[0].row_guid,
+          menuGuid: rows[0].menu_guid,
+          workspaceId,
+          ...rawJson,
+        };
+      }
+
+      // If no footer row exists yet, generate sensible default configuration
+      const workspace = await this.getWorkspace(workspaceId);
+      const pages = await this.getPageList(workspaceId);
+
+      const quickLinks = [
+        { id: "fl-home", label: "Home", url: "/", target: "_self" },
+      ];
+      const serviceLinks = [];
+
+      (pages || []).forEach((p, idx) => {
+        if (p.slug && p.slug !== "home") {
+          const cleanSlug = p.slug.replace(/^\//, "").replace(/\/$/, "");
+          const linkObj = {
+            id: `fl-${idx + 1}`,
+            label: p.title || cleanSlug.replace(/-/g, " "),
+            url: `/${cleanSlug}/`,
+            target: "_self",
+            pageKey: cleanSlug,
+          };
+          if (cleanSlug.includes("service") || cleanSlug.includes("repair") || cleanSlug.includes("install")) {
+            serviceLinks.push(linkObj);
+          } else if (quickLinks.length < 5) {
+            quickLinks.push(linkObj);
+          }
+        }
+      });
+
+      const defaultColumns = [
+        {
+          id: "col-quick-links",
+          title: "Quick Links",
+          links: quickLinks,
+        },
+        {
+          id: "col-services",
+          title: "Services",
+          links: serviceLinks.length > 0 ? serviceLinks : [
+            { id: "fl-s1", label: "AC Repair & Tune-Up", url: "/services/", target: "_self" },
+            { id: "fl-s2", label: "Heating & Furnace Repair", url: "/services/", target: "_self" },
+            { id: "fl-s3", label: "Emergency Dispatch", url: "/contact/", target: "_self" },
+          ],
+        },
+      ];
+
+      const currentYear = new Date().getFullYear();
+      const siteTitle = workspace?.clientName || "WordPress Site";
+
+      return {
+        rowGuid: null,
+        workspaceId,
+        branding: {
+          siteTitle,
+          logoUrl: "",
+          logoWidth: 160,
+          tagline: "Quality Service You Can Trust",
+          aboutText: "Providing reliable heating, cooling, and home comfort solutions. Dedicated to excellence, customer satisfaction, and fast 24/7 emergency dispatch.",
+        },
+        columns: defaultColumns,
+        contact: {
+          phone: "(609) 555-0100",
+          phoneLabel: "Phone",
+          email: "support@example.com",
+          emailLabel: "Email",
+          address: "100 Main Street, Princeton, NJ 08540",
+          addressLabel: "Address",
+          workingHours: "Mon - Fri: 8:00 AM - 6:00 PM | 24/7 Emergency Dispatch",
+          showPhone: true,
+          showEmail: true,
+          showAddress: true,
+        },
+        social: {
+          facebook: "https://facebook.com",
+          twitter: "https://twitter.com",
+          linkedin: "https://linkedin.com",
+          instagram: "",
+          youtube: "",
+        },
+        bottomBar: {
+          copyrightText: `© ${currentYear} ${siteTitle}. All rights reserved.`,
+          links: [
+            { id: "bb-1", label: "Privacy Policy", url: "/privacy-policy/", target: "_self" },
+            { id: "bb-2", label: "Terms of Service", url: "/terms-of-service/", target: "_self" },
+          ],
+        },
+        settings: {
+          theme: "dark",
+          backgroundColor: "#0f172a",
+          textColor: "#94a3b8",
+          accentColor: "#38bdf8",
+        },
+      };
+    } catch (err) {
+      console.error("Error fetching footer from menus:", err);
+      return null;
+    }
+  }
+
+  /**
+   * Save Site Footer configuration into public.menus
+   * @param {string} workspaceId
+   * @param {object} footerData
+   */
+  async saveFooter(workspaceId, footerData = {}) {
+    try {
+      const now = new Date().toISOString();
+      let targetRowGuid = footerData.rowGuid;
+
+      if (!targetRowGuid) {
+        // Check if a footer row already exists
+        const existing = await this.selectRows(
+          "menus",
+          "menu_guid,row_guid,workspace_guid,menu_key",
+          [
+            { Operand: "eq", UIKey: "workspace_guid", Value: workspaceId },
+            { Operand: "eq", UIKey: "menu_key", Value: "footer" },
+          ],
+          [{ UIKey: "row_guid", Direction: "ASC" }],
+          "1",
+          "1"
+        );
+        if (existing?.[0]?.row_guid) {
+          targetRowGuid = existing[0].row_guid;
+        } else {
+          targetRowGuid =
+            typeof crypto !== "undefined" && crypto.randomUUID
+              ? crypto.randomUUID()
+              : "b2000000-0000-0000-0000-" + Date.now().toString(16).padStart(12, "0");
+        }
+      }
+
+      const cleanJson = {
+        branding: footerData.branding || {},
+        columns: Array.isArray(footerData.columns) ? footerData.columns : [],
+        contact: footerData.contact || {},
+        social: footerData.social || {},
+        bottomBar: footerData.bottomBar || {},
+        settings: footerData.settings || {},
+      };
+
+      const payload = {
+        menu_guid: footerData.menuGuid || targetRowGuid,
+        row_guid: targetRowGuid,
+        workspace_guid: workspaceId,
+        menu_key: "footer",
+        name: "Site Footer & Navigation",
+        content_json: cleanJson,
+        is_active: true,
+        updated_on: now,
+        is_deleted: false,
+      };
+
+      const response = await this.merge([payload], "menus");
+      if (response.data?.status === "error" || response.data?.errorMessage) {
+        throw new Error(
+          response.data.errorMessage || "Failed to merge footer into menus table"
+        );
+      }
+
+      return {
+        success: true,
+        rowGuid: targetRowGuid,
+        savedAt: now,
+        footerData: cleanJson,
+      };
+    } catch (err) {
+      console.error("Error saving footer in menus:", err);
+      throw err;
+    }
+  }
 }
 
 const dataService = new DataService();
