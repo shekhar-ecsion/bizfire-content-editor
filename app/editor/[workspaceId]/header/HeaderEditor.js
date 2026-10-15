@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { compileHeader } from '@/lib/headerCompiler.js';
 
@@ -42,12 +42,95 @@ export default function HeaderEditor({ workspace, initialPages = [], initialHead
     };
   });
 
+  // Track initial snapshot to detect unsaved changes
+  const [lastSavedData, setLastSavedData] = useState(() => {
+    return JSON.parse(JSON.stringify({
+      rowGuid: initialHeader?.rowGuid || null,
+      menuGuid: initialHeader?.menuGuid || null,
+      branding: {
+        siteTitle: initialHeader?.branding?.siteTitle || workspace?.clientName || 'WordPress Site',
+        logoUrl: initialHeader?.branding?.logoUrl || '',
+        logoWidth: initialHeader?.branding?.logoWidth || 180,
+        tagline: initialHeader?.branding?.tagline || '',
+      },
+      contact: {
+        phone: initialHeader?.contact?.phone || '(609) 555-0100',
+        phoneLabel: initialHeader?.contact?.phoneLabel || 'Call Us 24/7',
+        showPhone: initialHeader?.contact?.showPhone !== false,
+      },
+      cta: {
+        text: initialHeader?.cta?.text || 'Schedule Service',
+        url: initialHeader?.cta?.url || '/contact/',
+        showCta: initialHeader?.cta?.showCta !== false,
+      },
+      settings: {
+        isSticky: initialHeader?.settings?.isSticky !== false,
+        showTopBar: initialHeader?.settings?.showTopBar !== false,
+        topBarText: initialHeader?.settings?.topBarText || 'Proudly Serving Local Homeowners & Businesses',
+      },
+      items: Array.isArray(initialHeader?.items) && initialHeader.items.length > 0
+        ? initialHeader.items
+        : [
+            { id: 'item-home', label: 'Home', url: '/', target: '_self' },
+            { id: 'item-services', label: 'Services', url: '/services/', target: '_self', children: [] },
+            { id: 'item-about', label: 'About Us', url: '/about/', target: '_self' },
+            { id: 'item-contact', label: 'Contact', url: '/contact/', target: '_self' },
+          ],
+    }));
+  });
+
   const [activeTab, setActiveTab] = useState('links'); // 'links' | 'branding' | 'contact' | 'settings'
   const [viewport, setViewport] = useState('desktop'); // 'desktop' | 'tablet' | 'mobile'
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [alert, setAlert] = useState(null);
+  const [clickNotice, setClickNotice] = useState(null);
   const [expandedItems, setExpandedItems] = useState(new Set());
+
+  // Detect unsaved changes by comparing current state against last saved snapshot
+  const isDirty = useMemo(() => {
+    return JSON.stringify(headerData) !== JSON.stringify(lastSavedData);
+  }, [headerData, lastSavedData]);
+
+  // Warn user on browser reload/close if there are unsaved changes
+  useEffect(() => {
+    if (!isDirty) return;
+
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = 'You have unsaved changes in your Site Header. Are you sure you want to leave without saving?';
+      return e.returnValue;
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
+  // Intercept client-side Next.js in-app navigation transitions if there are unsaved changes
+  useEffect(() => {
+    if (!isDirty) return;
+
+    const handleInAppNavigation = (e) => {
+      const anchor = e.target.closest('a');
+      if (!anchor) return;
+      if (anchor.target === '_blank') return;
+
+      const href = anchor.getAttribute('href');
+      if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+
+      const confirmed = window.confirm(
+        'You have unsaved changes in your Site Header.\n\nNavigating away will discard your changes.\n\nAre you sure you want to leave without saving?'
+      );
+
+      if (!confirmed) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    document.addEventListener('click', handleInAppNavigation, true);
+    return () => document.removeEventListener('click', handleInAppNavigation, true);
+  }, [isDirty]);
 
   // Real-time Handlebars compile for live preview
   const compiled = useMemo(() => {
@@ -191,6 +274,7 @@ export default function HeaderEditor({ workspace, initialPages = [], initialHead
       if (data.rowGuid) {
         setHeaderData(prev => ({ ...prev, rowGuid: data.rowGuid }));
       }
+      setLastSavedData(JSON.parse(JSON.stringify(headerData)));
       setAlert({
         type: 'success',
         message: 'Header draft saved successfully to database.',
@@ -225,6 +309,7 @@ export default function HeaderEditor({ workspace, initialPages = [], initialHead
       if (data.rowGuid) {
         setHeaderData(prev => ({ ...prev, rowGuid: data.rowGuid }));
       }
+      setLastSavedData(JSON.parse(JSON.stringify(headerData)));
 
       if (data.wpSyncStatus === 'failed') {
         setAlert({
@@ -265,6 +350,23 @@ export default function HeaderEditor({ workspace, initialPages = [], initialHead
             <strong>Site Header & Navigation</strong>
             <span className="ws-id-pill">{workspace.clientName}</span>
           </div>
+          {isDirty ? (
+            <span
+              className="badge bg-warning text-dark border border-warning"
+              style={{ fontSize: '11px', fontWeight: '600', marginLeft: '12px' }}
+              title="You have unsaved changes"
+            >
+              ● Unsaved Changes
+            </span>
+          ) : (
+            <span
+              className="badge bg-light text-muted border"
+              style={{ fontSize: '11px', fontWeight: '500', marginLeft: '12px' }}
+              title="All changes saved to database"
+            >
+              All changes saved
+            </span>
+          )}
         </div>
 
         <div className="ws-topbar-right" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -311,6 +413,34 @@ export default function HeaderEditor({ workspace, initialPages = [], initialHead
             overflowY: 'auto',
           }}
         >
+          {/* Unsaved Changes Banner */}
+          {isDirty && (
+            <div
+              style={{
+                backgroundColor: '#fffbeb',
+                borderBottom: '1px solid #fef3c7',
+                padding: '9px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '8px',
+              }}
+            >
+              <div style={{ fontSize: '12px', color: '#92400e', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontWeight: '700' }}>⚠️ Unsaved:</span> Header changes pending.
+              </div>
+              <button
+                type="button"
+                className="btn btn-warning btn-sm py-0 px-2"
+                style={{ fontSize: '11px', fontWeight: '600' }}
+                onClick={handleSaveDraft}
+                disabled={isSaving}
+              >
+                {isSaving ? 'Saving...' : 'Save Draft'}
+              </button>
+            </div>
+          )}
+
           {/* Tab Navigation */}
           <div
             style={{
@@ -984,6 +1114,22 @@ export default function HeaderEditor({ workspace, initialPages = [], initialHead
             </div>
           )}
 
+          {/* Click Notice Toast (Shown when user clicks links inside preview) */}
+          {clickNotice && (
+            <div style={{ padding: '16px 24px 0' }}>
+              <div className="alert alert-info alert-dismissible fade show d-flex align-items-center mb-0" role="alert" style={{ fontSize: '13px' }}>
+                <span style={{ marginRight: '8px' }}>ℹ️</span>
+                <span>{clickNotice}</span>
+                <button
+                  type="button"
+                  className="btn-close ms-auto"
+                  onClick={() => setClickNotice(null)}
+                  aria-label="Close"
+                ></button>
+              </div>
+            </div>
+          )}
+
           {/* Live Preview Container */}
           <div style={{ padding: '24px', display: 'flex', justifyContent: 'center' }}>
             <div
@@ -996,6 +1142,24 @@ export default function HeaderEditor({ workspace, initialPages = [], initialHead
                 overflow: 'hidden',
                 border: '1px solid #cbd5e1',
                 minHeight: '500px',
+              }}
+              onClickCapture={(e) => {
+                // Intercept any link click inside the preview to prevent accidental navigation
+                const anchor = e.target.closest('a');
+                if (anchor) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const linkName = anchor.innerText?.trim() || anchor.getAttribute('href') || 'Navigation link';
+                  setClickNotice(`"${linkName}" clicked. Link navigation is disabled in the editor preview to prevent losing unsaved progress.`);
+                  return;
+                }
+
+                // Intercept any button click that is NOT the mobile hamburger drawer toggle
+                const button = e.target.closest('button');
+                if (button && !button.classList.contains('bizfire-hamburger-toggle')) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
               }}
             >
               {/* Header CSS + Rendered HTML */}
