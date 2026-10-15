@@ -35,11 +35,13 @@ export async function POST(request) {
       apiKey: body.apiKey || request.headers.get("x-api-key") || request.headers.get("X-API-Key"),
       slug,
       title,
+      rowGuid: rowGuid || pageGuid,
     });
 
     return NextResponse.json({
       success: true,
-      postId,
+      postId: result?.postId || postId,
+      uuid: result?.wpResponse?.uuid || rowGuid || pageGuid,
       publishedAt: result?.publishedAt || new Date().toISOString(),
       liveUrl: result?.liveUrl || "",
       compiledHtml: result?.compiledHtml || "",

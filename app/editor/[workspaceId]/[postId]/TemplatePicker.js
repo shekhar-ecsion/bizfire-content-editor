@@ -41,6 +41,11 @@ export default function TemplatePicker({
     setIsCreating(true);
 
     try {
+      const isNumericId = !isNaN(Number(postId));
+      const rowGuid = isNumericId
+        ? (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : undefined)
+        : String(postId);
+
       const template = themeBundle.pageTemplates?.find(t => t.id === selectedTemplateId);
       const library = Object.fromEntries((themeBundle.components || []).map(c => [c.id, c]));
 
@@ -57,9 +62,11 @@ export default function TemplatePicker({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           workspaceId: workspace.workspaceId,
-          postId: Number(postId),
-          title: title.trim() || `Page ${postId}`,
-          slug: slug.trim() || `page-${postId}`,
+          postId: isNumericId ? Number(postId) : rowGuid,
+          rowGuid: rowGuid,
+          pageGuid: rowGuid,
+          title: title.trim() || `Page ${slug || 'Draft'}`,
+          slug: slug.trim() || `page-${slugify(title) || 'draft'}`,
           templateId: selectedTemplateId,
           sections: defaultSections
         })
@@ -78,6 +85,8 @@ export default function TemplatePicker({
     }
   }
 
+  const isNumeric = !isNaN(Number(postId));
+
   return (
     <div className="template-picker-page">
       <header className="ws-topbar">
@@ -88,7 +97,7 @@ export default function TemplatePicker({
           <span className="ws-nav-separator">/</span>
           <div className="ws-client-title">
             <strong>{workspace.clientName}</strong>
-            <span className="ws-id-pill">Post #{postId}</span>
+            <span className="ws-id-pill">{isNumeric ? `Post #${postId}` : 'New Page'}</span>
           </div>
         </div>
       </header>
@@ -96,9 +105,9 @@ export default function TemplatePicker({
       <div className="template-picker-container">
         <div className="template-picker-header">
           <span className="picker-tag">New Page Setup</span>
-          <h2>Initialize Page #{postId}</h2>
+          <h2>Initialize Page Content</h2>
           <p>
-            This page has not been built yet. Select a page template from your workspace's cloned theme to populate initial sections.
+            Select a starting template from your workspace's cloned theme to populate initial sections.
           </p>
         </div>
 

@@ -373,7 +373,8 @@ class DataService {
       );
 
       return (rows || []).map((p) => ({
-        postId: p.post_id || p.row_guid,
+        postId: p.post_id || null,
+        rowGuid: p.row_guid,
         slug: p.slug,
         title: p.title,
         templateId: p.template_slug || "service-standard",

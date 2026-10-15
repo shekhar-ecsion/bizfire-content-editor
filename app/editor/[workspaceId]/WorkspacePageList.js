@@ -15,12 +15,6 @@ export default function WorkspacePageList({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  // New page form state
-  const nextSuggestedId = pages.length > 0 
-    ? Math.max(...pages.map(p => Number(p.postId) || 0)) + 1 
-    : 101;
-
-  const [newPostId, setNewPostId] = useState(nextSuggestedId);
   const [newTitle, setNewTitle] = useState('');
   const [newSlug, setNewSlug] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState(
@@ -50,6 +44,11 @@ export default function WorkspacePageList({
     setIsSubmitting(true);
 
     try {
+      // Generate clean UUID for the new draft page
+      const pageGuid = typeof crypto !== 'undefined' && crypto.randomUUID 
+        ? crypto.randomUUID() 
+        : 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 9);
+
       // Find selected template to generate default sections
       const template = themeBundle.pageTemplates?.find(t => t.id === selectedTemplateId);
       const library = Object.fromEntries((themeBundle.components || []).map(c => [c.id, c]));
@@ -67,9 +66,11 @@ export default function WorkspacePageList({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           workspaceId: workspace.workspaceId,
-          postId: Number(newPostId),
+          postId: pageGuid,
+          rowGuid: pageGuid,
+          pageGuid: pageGuid,
           title: newTitle.trim() || 'Untitled Page',
-          slug: newSlug.trim() || `page-${newPostId}`,
+          slug: newSlug.trim() || `page-${pageGuid.slice(0, 8)}`,
           templateId: selectedTemplateId,
           sections: defaultSections
         })
@@ -81,7 +82,7 @@ export default function WorkspacePageList({
       }
 
       setIsModalOpen(false);
-      router.push(`/editor/${workspace.workspaceId}/${newPostId}`);
+      router.push(`/editor/${workspace.workspaceId}/${pageGuid}`);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -148,7 +149,6 @@ export default function WorkspacePageList({
             type="button"
             className="btn-primary"
             onClick={() => {
-              setNewPostId(nextSuggestedId);
               setNewTitle('');
               setNewSlug('');
               setIsModalOpen(true);
@@ -220,7 +220,7 @@ export default function WorkspacePageList({
             <table className="ws-pages-table">
               <thead>
                 <tr>
-                  <th>Post ID</th>
+                  <th>WordPress ID</th>
                   <th>Page Title & Slug</th>
                   <th>Template</th>
                   <th>Status</th>
@@ -230,35 +230,42 @@ export default function WorkspacePageList({
                 </tr>
               </thead>
               <tbody>
-                {pages.map(page => (
-                  <tr key={page.postId}>
-                    <td>
-                      <span className="post-id-tag">#{page.postId}</span>
-                    </td>
-                    <td>
-                      <div className="page-title-cell">
-                        <strong>{page.title || 'Untitled Page'}</strong>
-                        <code>/{page.slug || ''}</code>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="template-pill">
-                        {themeBundle.pageTemplates?.find(t => t.id === page.templateId)?.name || page.templateId || 'Custom'}
-                      </span>
-                    </td>
-                    <td>{getStatusBadge(page)}</td>
-                    <td>{formatDate(page.lastSavedAt)}</td>
-                    <td>{formatDate(page.lastPublishedAt)}</td>
-                    <td style={{ textAlign: 'right' }}>
-                      <Link
-                        href={`/editor/${workspace.workspaceId}/${page.postId}`}
-                        className="btn-table-edit"
-                      >
-                        Edit Content →
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                {pages.map(page => {
+                  const targetIdentifier = page.rowGuid || page.postId;
+                  return (
+                    <tr key={page.rowGuid || page.postId}>
+                      <td>
+                        {page.postId ? (
+                          <span className="post-id-tag">#{page.postId}</span>
+                        ) : (
+                          <span className="post-id-tag draft-tag">Draft (Unpublished)</span>
+                        )}
+                      </td>
+                      <td>
+                        <div className="page-title-cell">
+                          <strong>{page.title || 'Untitled Page'}</strong>
+                          <code>/{page.slug || ''}</code>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="template-pill">
+                          {themeBundle.pageTemplates?.find(t => t.id === page.templateId)?.name || page.templateId || 'Custom'}
+                        </span>
+                      </td>
+                      <td>{getStatusBadge(page)}</td>
+                      <td>{formatDate(page.lastSavedAt)}</td>
+                      <td>{formatDate(page.lastPublishedAt)}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <Link
+                          href={`/editor/${workspace.workspaceId}/${targetIdentifier}`}
+                          className="btn-table-edit"
+                        >
+                          Edit Content →
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -282,19 +289,6 @@ export default function WorkspacePageList({
 
             <form onSubmit={handleCreatePage} className="ws-modal-form">
               {error && <div className="ws-modal-error">{error}</div>}
-
-              <div className="ws-form-group">
-                <label>WordPress Post ID *</label>
-                <input
-                  type="number"
-                  value={newPostId}
-                  required
-                  min="1"
-                  onChange={e => setNewPostId(e.target.value)}
-                  placeholder="e.g. 103"
-                />
-                <small>The post ID in WordPress to attach this page's content to.</small>
-              </div>
 
               <div className="ws-form-group">
                 <label>Page Title *</label>

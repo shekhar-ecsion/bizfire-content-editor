@@ -437,18 +437,27 @@ export default function Editor({
       setLastSaved(data.publishedAt);
       setIsDirty(false);
 
+      if (data.postId && !isNaN(Number(data.postId))) {
+        pageData.postId = data.postId;
+      }
+
       if (data.wpSyncStatus === 'error') {
         setPublishStatus({
           type: 'error',
           text: `Saved locally, but WordPress sync failed: ${data.wpSyncError || 'Forbidden'}`
         });
       } else {
+        // Append cache buster so clicking View Live immediately displays fresh server render
+        const liveUrlWithBuster = data.liveUrl 
+          ? (data.liveUrl.includes('?') ? `${data.liveUrl}&_t=${Date.now()}` : `${data.liveUrl}?_t=${Date.now()}`)
+          : '';
+
         setPublishStatus({
           type: 'success',
           text: 'Published to WordPress!',
-          liveUrl: data.liveUrl
+          liveUrl: liveUrlWithBuster
         });
-        setTimeout(() => setPublishStatus(null), 6000);
+        setTimeout(() => setPublishStatus(null), 8000);
       }
     } catch (err) {
       setPublishStatus({ type: 'error', text: err.message });
@@ -670,7 +679,11 @@ ${renderedSections}
                     onChange={e => { setPageTitle(e.target.value); setIsDirty(true); }}
                     title="Click to edit page title"
                   />
-                  <span className="post-id-tag">#{pageData?.postId}</span>
+                  {pageData?.postId && !isNaN(Number(pageData.postId)) ? (
+                    <span className="post-id-tag">#{pageData.postId}</span>
+                  ) : (
+                    <span className="post-id-tag draft-tag">Draft</span>
+                  )}
                 </div>
                 <div className="ws-header-sub-row">
                   <span className="ws-header-client">{workspace?.clientName}</span>
