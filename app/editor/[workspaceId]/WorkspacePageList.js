@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import ImportWpPageModal from '../../ImportWpPageModal';
 
 export default function WorkspacePageList({
   workspace,
@@ -11,6 +12,8 @@ export default function WorkspacePageList({
 }) {
   const router = useRouter();
   const [pages, setPages] = useState(initialPages);
+
+  // New Page Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -20,6 +23,9 @@ export default function WorkspacePageList({
   const [selectedTemplateId, setSelectedTemplateId] = useState(
     themeBundle?.pageTemplates?.[0]?.id || ''
   );
+
+  // Import Existing WP Pages Modal State
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   function handleTitleChange(val) {
     setNewTitle(val);
@@ -115,6 +121,9 @@ export default function WorkspacePageList({
     }
   }
 
+  // Filter WP pages by search query
+  const existingPostIds = new Set(pages.map(p => Number(p.postId)).filter(Boolean));
+
   return (
     <div className="workspace-dashboard">
       {/* Top Header */}
@@ -145,6 +154,14 @@ export default function WorkspacePageList({
           <Link href="/" className="btn-secondary">
             Playground ↗
           </Link>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => setIsImportModalOpen(true)}
+            title="Import an existing page from your WordPress site"
+          >
+            Import from WordPress ⤓
+          </button>
           <button
             type="button"
             className="btn-primary"
@@ -196,25 +213,43 @@ export default function WorkspacePageList({
               <h2>Workspace Pages</h2>
               <p>Manage and edit component-driven pages for this client.</p>
             </div>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => setIsModalOpen(true)}
-            >
-              + Add Page
-            </button>
-          </div>
-
-          {pages.length === 0 ? (
-            <div className="ws-empty-state">
-              <p>No pages created yet for this workspace.</p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setIsImportModalOpen(true)}
+              >
+                Import from WordPress ⤓
+              </button>
               <button
                 type="button"
                 className="btn-primary"
                 onClick={() => setIsModalOpen(true)}
               >
-                Create First Page
+                + Add Page
               </button>
+            </div>
+          </div>
+
+          {pages.length === 0 ? (
+            <div className="ws-empty-state">
+              <p>No pages created yet for this workspace.</p>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setIsImportModalOpen(true)}
+                >
+                  Import Existing WordPress Page
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => setIsModalOpen(true)}
+                >
+                  Create First Page
+                </button>
+              </div>
             </div>
           ) : (
             <table className="ws-pages-table">
@@ -271,6 +306,15 @@ export default function WorkspacePageList({
           )}
         </section>
       </main>
+
+      {/* Import from WordPress Modal */}
+      <ImportWpPageModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        workspace={workspace}
+        themeBundle={themeBundle}
+        existingPostIds={existingPostIds}
+      />
 
       {/* Create New Page Modal */}
       {isModalOpen && (

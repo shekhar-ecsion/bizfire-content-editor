@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import ImportWpPageModal from '../../../ImportWpPageModal';
 
 export default function TemplatePicker({
   workspace,
@@ -17,6 +18,7 @@ export default function TemplatePicker({
   const [slug, setSlug] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   function handleTitleChange(val) {
     setTitle(val);
@@ -100,15 +102,36 @@ export default function TemplatePicker({
             <span className="ws-id-pill">{isNumeric ? `Post #${postId}` : 'New Page'}</span>
           </div>
         </div>
+
+        <div className="ws-topbar-right">
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => setIsImportModalOpen(true)}
+            title="Import an existing page from your WordPress site"
+          >
+            Import from WordPress ⤓
+          </button>
+        </div>
       </header>
 
       <div className="template-picker-container">
-        <div className="template-picker-header">
-          <span className="picker-tag">New Page Setup</span>
-          <h2>Initialize Page Content</h2>
-          <p>
-            Select a starting template from your workspace's cloned theme to populate initial sections.
-          </p>
+        <div className="template-picker-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+          <div>
+            <span className="picker-tag">New Page Setup</span>
+            <h2>Initialize Page Content</h2>
+            <p>
+              Select a starting template from your workspace's cloned theme to populate initial sections.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => setIsImportModalOpen(true)}
+            style={{ marginTop: '8px' }}
+          >
+            Or Import Existing WordPress Page ⤓
+          </button>
         </div>
 
         {error && <div className="ws-modal-error">{error}</div>}
@@ -187,6 +210,14 @@ export default function TemplatePicker({
           </div>
         </form>
       </div>
+
+      {/* Import from WordPress Modal */}
+      <ImportWpPageModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        workspace={workspace}
+        themeBundle={themeBundle}
+      />
     </div>
   );
 }
