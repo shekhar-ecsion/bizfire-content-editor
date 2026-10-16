@@ -1,0 +1,20 @@
+<section class="coupon-section py-lg-6">
+  <div class="container">
+    <div class="text-center mb-5">
+      <h2 class="section-title">{{heading}}</h2>
+    </div>
+    <div class="row g-4">
+      {{#each coupons}}
+      <div class="col-md-4">
+        <div class="coupon-card" style="border:2px dashed #A01922; border-radius:12px; padding:24px; background:#fff; text-align:center;">
+          <div class="coupon-discount" style="font-size:32px; font-weight:800; color:#A01922;">{{this.discount}}</div>
+          <h3 style="font-size:18px; margin:12px 0 8px;">{{this.title}}</h3>
+          <p style="font-size:13px; color:#64748b; margin-bottom:16px;">{{this.terms}}</p>
+          <div style="font-size:12px; font-weight:600; color:#dc2626; margin-bottom:16px;">{{this.expiry}}</div>
+          <button type="button" onclick="openRedeemPopup()" class="btn-filled-chat coupon-btn" style="background:#A01922; color:#fff; border:none; padding:10px 20px; border-radius:30px; cursor:pointer;">Claim Coupon</button>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+</section>

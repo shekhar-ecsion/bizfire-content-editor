@@ -1,0 +1,67 @@
+{
+  "id": "demo-plumbing",
+  "name": "Real-World Production Plumbing Landing Page",
+  "description": "Complete 20-section landing page matching the design team specification with video, carousels, coupons, and guarantee stats.",
+  "components": [
+    {
+      "type": "plumbing-hero-split"
+    },
+    {
+      "type": "cta-strip"
+    },
+    {
+      "type": "plumbing-order-checklist"
+    },
+    {
+      "type": "plumbing-services-grid"
+    },
+    {
+      "type": "plumbing-care-video"
+    },
+    {
+      "type": "trust-bar"
+    },
+    {
+      "type": "accordion-map-section"
+    },
+    {
+      "type": "process-steps-grid"
+    },
+    {
+      "type": "cta-banner-dual"
+    },
+    {
+      "type": "testimonial-carousel"
+    },
+    {
+      "type": "coupon-grid"
+    },
+    {
+      "type": "financing-cta"
+    },
+    {
+      "type": "comfort-club-perks"
+    },
+    {
+      "type": "plumbing-spotlight-hero"
+    },
+    {
+      "type": "plumbing-services-grid"
+    },
+    {
+      "type": "services-detailed-grid"
+    },
+    {
+      "type": "cta-banner-dual"
+    },
+    {
+      "type": "plumbing-hvac-cross-sell"
+    },
+    {
+      "type": "comfort-closing-cta"
+    },
+    {
+      "type": "certifications-marquee"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+<section class="plumbing-care-section section-padding bg-light-gray py-lg-6">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-10 col-xl-9 text-center">
+        <h2 class="plumbing-care-heading section-title">{{heading}}</h2>
+        <p class="plumbing-care-subheading section-subtitle">{{subheading}}</p>
+        <div class="spacer-50"></div>
+      </div>
+    </div>
+    <div class="row justify-content-center">
+      <div class="col-lg-12">
+        <div class="video-card">
+          <img src="{{image.src}}" alt="{{image.alt}}" class="video-card-img" width="1280" height="720" loading="lazy">
+          <div class="play-button-wrapper">
+            <button class="play-button" aria-label="Play video" onclick="openQuotePopup()">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="6,3 20,12 6,21" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row justify-content-center">
+      <div class="col-lg-10 col-xl-9 text-center">
+        <div class="spacer-40"></div>
+        {{#if desc1}}<p class="plumbing-care-text">{{desc1}}</p>{{/if}}
+        {{#if desc2}}<p class="plumbing-care-text">{{desc2}}</p>{{/if}}
+        <div class="button-group justify-content-center mt-4">
+          <a href="tel:{{phone}}" class="btn-outline-phone">{{phone}}</a>
+          <a href="#chat" onclick="openQuotePopup()" class="btn-filled-chat">{{chatText}}</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

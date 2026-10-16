@@ -1,0 +1,43 @@
+{
+  "name": "Plumbing Order & Guarantee",
+  "category": "Features",
+  "fields": {
+    "sectionTitle": {
+      "type": "text",
+      "label": "Section Title",
+      "default": "When Plumbing Disrupts Your Home, We Restore Order"
+    },
+    "headline": {
+      "type": "text",
+      "label": "Left Headline",
+      "default": "Your plumbing works in the background until the minute it stops."
+    },
+    "desc1": {
+      "type": "textarea",
+      "label": "Description 1",
+      "default": "You turn a handle expecting water. You flush expecting nothing else to happen. When one of those automatic assumptions stops holding, the rest of the household adjusts around it."
+    },
+    "desc2": {
+      "type": "textarea",
+      "label": "Description 2",
+      "default": "Princeton Air's licensed plumbers walk into that moment with a plan. Five decades of serving New Jersey homeowners has taught us that the plumbing call that earns the next one is the one that's done properly the first time."
+    },
+    "stats": {
+      "type": "array",
+      "label": "Stats & Badges",
+      "itemLabel": "Stat Item",
+      "itemSchema": {
+        "number": {
+          "type": "text",
+          "label": "Number/Stat",
+          "default": "50+"
+        },
+        "label": {
+          "type": "text",
+          "label": "Label",
+          "default": "Years in Business"
+        }
+      }
+    }
+  }
+}

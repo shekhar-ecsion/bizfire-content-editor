@@ -1,0 +1,11 @@
+{
+  "name": "Certifications & Partners Marquee",
+  "category": "Trust Badges",
+  "fields": {
+    "heading": {
+      "type": "text",
+      "label": "Optional Heading",
+      "default": "Trusted & Certified Excellence"
+    }
+  }
+}

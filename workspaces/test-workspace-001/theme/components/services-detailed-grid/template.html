@@ -1,0 +1,17 @@
+<section class="services-section section-padding bg-light-gray" style="padding:48px 0;">
+  <div class="container">
+    <div class="text-center mb-5">
+      <h2 class="section-title">{{title}}</h2>
+    </div>
+    <div class="row g-4">
+      {{#each cards}}
+      <div class="col-md-4">
+        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:28px; height:100%;">
+          <h3 style="font-size:20px; font-weight:700; color:#172033; margin:0 0 10px;">{{this.title}}</h3>
+          <p style="color:#5b6472; font-size:14px; line-height:1.5; margin:0;">{{this.desc}}</p>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+</section>

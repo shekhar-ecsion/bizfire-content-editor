@@ -1,0 +1,29 @@
+<section class="steps-section bg-light-gray section-padding py-lg-6">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-10 text-center mb-5">
+        <h2 class="section-title">{{title}}</h2>
+      </div>
+    </div>
+    <div class="row align-items-center">
+      <div class="col-lg-7">
+        <div class="steps-list">
+          {{#each steps}}
+          <div class="step-card mb-4" style="background:#fff; padding:24px; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.04); display:flex; gap:20px;">
+            <div class="step-num" style="font-size:32px; font-weight:800; color:#A01922; line-height:1;">{{this.number}}</div>
+            <div>
+              <h3 style="font-size:20px; font-weight:700; margin:0 0 8px;">{{this.title}}</h3>
+              <p style="margin:0; color:#5b6472; font-size:15px;">{{this.desc}}</p>
+            </div>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+      <div class="col-lg-5">
+        <div class="steps-image" style="border-radius:16px; overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,0.08);">
+          <img src="{{image.src}}" alt="{{image.alt}}" style="width:100%; height:auto; display:block;">
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
