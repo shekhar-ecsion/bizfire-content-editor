@@ -1,0 +1,538 @@
+name: Deploy to staging (Indian Server)
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to deploy (exact branch name)'
+        required: true
+        default: 'main'
+        type: string
+      skip_cache:
+        description: 'Force full rebuild (ignore cache)'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: staging-bizfire-content-editor
+  cancel-in-progress: false  # Never cancel a running staging deploy
+
+env:
+  PROJECT_NAME: staging-bizfire-content-editor
+  DOCKER_DIR: /opt/projects/bizfire/staging/staging-bizfire-content-editor
+  CODE_DIR: /srv/docker/projects/bizfire/staging/staging-bizfire-content-editor/volumes/code
+  DEPLOY_USER: newuser
+
+jobs:
+  # ─────────────────────────────────────────────
+  # JOB 1: Validate inputs before doing anything
+  # ─────────────────────────────────────────────
+  pre-flight:
+    name: Pre-flight Checks
+    runs-on: ubuntu-latest
+    outputs:
+      commit_sha: ${{ steps.info.outputs.commit_sha }}
+      commit_msg: ${{ steps.info.outputs.commit_msg }}
+      deploy_time: ${{ steps.info.outputs.deploy_time }}
+      urls: ${{ steps.resolve_url.outputs.urls }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch }}
+          fetch-depth: 5
+
+      - name: Gather deployment info
+        id: info
+        run: |
+          echo "commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "commit_msg=$(git log -1 --pretty=format:'%s')" >> $GITHUB_OUTPUT
+          echo "deploy_time=$(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_OUTPUT
+      - name: Print deployment summary
+        run: |
+          echo "╔══════════════════════════════════════════════╗"
+          echo "║          staging DEPLOYMENT SUMMARY          ║"
+          echo "╠══════════════════════════════════════════════╣"
+          echo "  Branch     : ${{ github.event.inputs.branch }}"
+          echo "  Commit     : $(git rev-parse --short HEAD)"
+          echo "  Message    : $(git log -1 --pretty=format:'%s')"
+          echo "  Author     : $(git log -1 --pretty=format:'%an')"
+          echo "  Triggered  : ${{ github.actor }}"
+          echo "  Run #      : ${{ github.run_number }}"
+          echo "  Force      : ${{ github.event.inputs.skip_cache }}"
+          echo "╚══════════════════════════════════════════════╝"
+          echo ""
+          echo "📋 Last 5 commits:"
+          git log -5 --pretty=format:"  %h │ %s (%an, %ar)"
+      - name: Resolve deployment URL(s) (pre-check)
+        id: resolve_url
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          echo "${{ secrets.REMOTE_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # NOTE: this reads the docker-compose.yml that is ALREADY on the
+          # server, since new code hasn't synced yet at this point in the
+          # pipeline. It's a fast early signal of where this deploy is
+          # pointed, so a human can cancel before the build/deploy jobs run
+          # if it looks wrong. The build-and-deploy job re-resolves this
+          # against the freshly-synced compose file for the final summary.
+          URLS=$(ssh -i ~/.ssh/deploy_key -p ${{ secrets.REMOTE_SSH_PORT }} \
+            -o StrictHostKeyChecking=no -o ConnectTimeout=30 \
+            ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_USER }} \
+            "cd ${{ env.DOCKER_DIR }} 2>/dev/null && docker compose config 2>/dev/null | grep -oE 'Host\(\`[^)]*\`\)' | sed -E 's/Host\(\`//;s/\`\)//' | sort -u" || true)
+          rm -f ~/.ssh/deploy_key
+          URLS_JOINED=$(echo "$URLS" | paste -sd, -)
+          echo "urls=$URLS_JOINED" >> $GITHUB_OUTPUT
+          if [ -z "$URLS" ]; then
+            echo "⚠️ No Traefik Host() rule found (first deploy, or DOCKER_DIR missing) — nothing to pre-check yet"
+          else
+            echo "✅ Currently pointing at: $URLS_JOINED"
+          fi
+      - name: Write pre-flight summary
+        run: |
+          {
+            echo "## ✅ Pre-flight Checks Passed"
+            echo ""
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| 🌿 Branch | \`${{ github.event.inputs.branch }}\` |"
+            echo "| 🔑 Commit | \`${{ steps.info.outputs.commit_sha }}\` |"
+            echo "| 📝 Message | ${{ steps.info.outputs.commit_msg }} |"
+            echo "| 👤 Author | $(git log -1 --pretty=format:'%an') |"
+            echo "| 🚀 Triggered by | ${{ github.actor }} |"
+            echo "| 🔄 Force rebuild | ${{ github.event.inputs.skip_cache }} |"
+            echo "| ⏱️ Time | ${{ steps.info.outputs.deploy_time }} |"
+            echo ""
+            echo "### 🌐 Currently Deployed Domain(s)"
+            echo ""
+            echo "_Resolved from the compose config already on the server, before this run's code has synced. If this doesn't look right, cancel the run now._"
+            echo ""
+            if [ -n "${{ steps.resolve_url.outputs.urls }}" ]; then
+              IFS=',' read -ra DOMAINS <<< "${{ steps.resolve_url.outputs.urls }}"
+              for domain in "${DOMAINS[@]}"; do
+                echo "- 🔗 [$domain](https://$domain)"
+              done
+            else
+              echo "- ⚠️ Could not resolve — server directory may not exist yet, or no Traefik labels configured"
+            fi
+            echo ""
+          } >> $GITHUB_STEP_SUMMARY
+  # ─────────────────────────────────────────────
+  # JOB 2: Sync code to staging server
+  # ─────────────────────────────────────────────
+  sync-code:
+    name: Sync Code to Server
+    runs-on: ubuntu-latest
+    needs: pre-flight
+    timeout-minutes: 20
+    steps:
+      - name: Show target domain(s)
+        run: |
+          {
+            echo "### 🌐 Target Domain(s) (from pre-flight)"
+            echo ""
+            if [ -n "${{ needs.pre-flight.outputs.urls }}" ]; then
+              IFS=',' read -ra DOMAINS <<< "${{ needs.pre-flight.outputs.urls }}"
+              for domain in "${DOMAINS[@]}"; do
+                echo "- 🔗 [$domain](https://$domain)"
+              done
+            else
+              echo "- ⚠️ Could not resolve during pre-flight — server directory may not exist yet, or no Traefik labels configured"
+            fi
+            echo ""
+          } >> $GITHUB_STEP_SUMMARY
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch }}
+          fetch-depth: 1
+
+      - name: Prepare server directory
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.REMOTE_SSH_KEY }}
+          port: ${{ secrets.REMOTE_SSH_PORT }}
+          command_timeout: 5m
+          script: |
+            set -euo pipefail
+            CODE_DIR="${{ env.CODE_DIR }}"
+            echo "🔧 Preparing code directory..."
+            # ✅ Create directory if not exists
+            if [ ! -d "$CODE_DIR" ]; then
+              echo "📁 Directory does not exist. Creating..."
+              sudo mkdir -p "$CODE_DIR"
+            fi
+            # ✅ Set ownership
+            sudo chown -R ${{ env.DEPLOY_USER }}:${{ env.DEPLOY_USER }} "$CODE_DIR"
+            # ✅ Set permissions
+            sudo chmod -R 755 "$CODE_DIR"
+            # ✅ Clean directory but keep .env.staging
+            sudo find "$CODE_DIR" -mindepth 1 \
+              ! -name ".env.staging" \
+              -delete
+            echo "✅ Directory ready (preserved .env.staging)"
+      - name: Install rsync
+        run: sudo apt-get update -qq && sudo apt-get install -y rsync
+
+      - name: Sync files via rsync
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          echo "${{ secrets.REMOTE_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          rsync -az --delete --checksum \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='node_modules' \
+            --exclude='.next' \
+            --exclude='.turbo' \
+            --exclude='build' \
+            --exclude='dist' \
+            --exclude='*.log' \
+            --exclude='.env' \
+            --exclude='.env.local' \
+            --exclude='.env.development' \
+            --exclude='.env.development.local' \
+            --exclude='.env.staging.local' \
+            --exclude='.env.production' \
+            -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.REMOTE_SSH_PORT }} -o StrictHostKeyChecking=no -o ConnectTimeout=30" \
+            ./ ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }}:${{ env.CODE_DIR }}/
+          rm -f ~/.ssh/deploy_key
+          echo "✅ Code synced to staging server"
+      - name: Configure environment
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.REMOTE_SSH_KEY }}
+          port: ${{ secrets.REMOTE_SSH_PORT }}
+          command_timeout: 2m
+          script: |
+            set -euo pipefail
+            CODE_DIR="${{ env.CODE_DIR }}"
+            # ── Create .env.staging if not found ─────────────────────────
+            if [ ! -f "$CODE_DIR/.env.staging" ]; then
+              echo "🆕 .env.staging not found..."
+              if [ -f "$CODE_DIR/.env.staging.example" ]; then
+                echo "📋 Copying .env.staging.example from repo..."
+                sudo cp "$CODE_DIR/.env.staging.example" "$CODE_DIR/.env.staging"
+              else
+                echo "⚠️ No example file found — creating blank (manual config needed)"
+                sudo touch "$CODE_DIR/.env.staging"
+              fi
+              sudo chown ${{ env.DEPLOY_USER }}:${{ env.DEPLOY_USER }} "$CODE_DIR/.env.staging"
+              sudo chmod 600 "$CODE_DIR/.env.staging"
+            else
+              echo "ℹ️ .env.staging already exists, keeping it"
+            fi
+            # ── Remove any leaked .env variants ────────────────────────
+            for f in .env .env.production .env.development .env.local \
+                     .env.staging.local .env.development.local; do
+              sudo rm -f "$CODE_DIR/$f"
+            done
+            # ── Always sync .env from .env.staging ───────────────────────
+            echo "🔄 Syncing .env from .env.staging..."
+            sudo cp "$CODE_DIR/.env.staging" "$CODE_DIR/.env"
+            echo "✅ .env updated from .env.staging"
+            # ── Set ownership & permissions ─────────────────────────────
+            sudo chown ${{ env.DEPLOY_USER }}:${{ env.DEPLOY_USER }} \
+              "$CODE_DIR/.env.staging" "$CODE_DIR/.env" 2>/dev/null || true
+            sudo chmod 600 "$CODE_DIR/.env.staging" "$CODE_DIR/.env" 2>/dev/null || true
+            echo "✅ Environment configured"
+            echo "Files:"
+            ls -la "$CODE_DIR/.env"*
+  # ─────────────────────────────────────────────
+  # JOB 3: Build & deploy Docker containers
+  # ─────────────────────────────────────────────
+  build-and-deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    needs: [pre-flight, sync-code]
+    timeout-minutes: 90
+    steps:
+      - name: Show target domain(s)
+        run: |
+          {
+            echo "### 🌐 Target Domain(s) (from pre-flight)"
+            echo ""
+            if [ -n "${{ needs.pre-flight.outputs.urls }}" ]; then
+              IFS=',' read -ra DOMAINS <<< "${{ needs.pre-flight.outputs.urls }}"
+              for domain in "${DOMAINS[@]}"; do
+                echo "- 🔗 [$domain](https://$domain)"
+              done
+            else
+              echo "- ⚠️ Could not resolve during pre-flight — server directory may not exist yet, or no Traefik labels configured"
+            fi
+            echo ""
+          } >> $GITHUB_STEP_SUMMARY
+      - name: Build containers
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.REMOTE_SSH_KEY }}
+          port: ${{ secrets.REMOTE_SSH_PORT }}
+          command_timeout: 40m
+          script: |
+            set -euo pipefail
+            DOCKER_DIR="${{ env.DOCKER_DIR }}"
+            CODE_DIR="${{ env.CODE_DIR }}"
+            cd "$DOCKER_DIR"
+            # ── Tag current images as rollback point ────────────────────
+            echo "🏷️ Tagging current images for rollback..."
+            for img in $(docker compose config --images 2>/dev/null); do
+              if docker image inspect "$img" >/dev/null 2>&1; then
+                docker tag "$img" "${img}-rollback"
+                echo "  tagged $img -> ${img}-rollback"
+              fi
+            done
+            # ── Clean Next.js build artifacts ───────────────────────────
+            # (node_modules lives inside Docker image — don't touch it here)
+            echo "🧹 Cleaning build artifacts..."
+            sudo rm -rf "$CODE_DIR/.next" "$CODE_DIR/.turbo"
+            # ── Stop running containers ─────────────────────────────────
+            echo "⏹️ Stopping containers..."
+            docker compose down --remove-orphans || true
+            # ── Build ───────────────────────────────────────────────────
+            if [ "${{ github.event.inputs.skip_cache }}" = "true" ]; then
+              echo "🔨 Force rebuild requested (no cache)..."
+              docker compose build --pull --no-cache
+            else
+              echo "🚀 Building (Docker layer cache active)..."
+              docker compose build --pull
+            fi
+            echo "✅ Build complete"
+      - name: Start containers & verify
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.REMOTE_SSH_KEY }}
+          port: ${{ secrets.REMOTE_SSH_PORT }}
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            DOCKER_DIR="${{ env.DOCKER_DIR }}"
+            cd "$DOCKER_DIR"
+            echo "🚀 Starting containers..."
+            docker compose up -d --force-recreate
+            # ── Wait for healthy status ─────────────────────────────────
+            echo "⏳ Waiting for container to become healthy..."
+            TIMEOUT=180
+            ELAPSED=0
+            INTERVAL=10
+            while [ $ELAPSED -lt $TIMEOUT ]; do
+              STATUS=$(docker compose ps --format json 2>/dev/null \
+                | grep -o '"Health":"[^"]*"' | head -1 | cut -d'"' -f4 || echo "")
+              if docker compose ps | grep -qE "(healthy|Up)"; then
+                echo "✅ Container running after ${ELAPSED}s"
+                break
+              fi
+              echo "  ⏳ Still starting... (${ELAPSED}/${TIMEOUT}s) status=${STATUS}"
+              sleep $INTERVAL
+              ELAPSED=$((ELAPSED + INTERVAL))
+            done
+            if [ $ELAPSED -ge $TIMEOUT ]; then
+              echo "❌ Timed out waiting for container to start"
+              docker compose logs --tail=100
+              echo "🔙 Rolling back to previous images..."
+              ROLLBACK_OK=true
+              for img in $(docker compose config --images 2>/dev/null); do
+                if docker image inspect "${img}-rollback" >/dev/null 2>&1; then
+                  docker tag "${img}-rollback" "$img"
+                else
+                  echo "  ⚠️ no rollback image for $img"
+                  ROLLBACK_OK=false
+                fi
+              done
+              docker compose up -d --force-recreate
+              if [ "$ROLLBACK_OK" = "true" ]; then
+                echo "✅ Rolled back to previous working version"
+              else
+                echo "⚠️ Rollback incomplete — some services had no prior image"
+              fi
+              exit 1
+            fi
+            # ── Final verification ──────────────────────────────────────
+            echo ""
+            echo "📋 Container status:"
+            docker compose ps
+            echo ""
+            echo "📋 Recent logs (last 30 lines):"
+            docker compose logs --tail=30
+            if docker compose ps | grep -qE "(healthy|Up)"; then
+              echo ""
+              echo "✅ ══════════════════════════════════════"
+              echo "✅  DEPLOYMENT SUCCESSFUL"
+              echo "✅  Branch : ${{ github.event.inputs.branch }}"
+              echo "✅  Run #  : ${{ github.run_number }}"
+              echo "✅  By     : ${{ github.actor }}"
+              echo "✅ ══════════════════════════════════════"
+            else
+              echo "❌ Container is NOT running — deployment failed"
+              docker compose logs --tail=100
+              echo "🔙 Rolling back to previous images..."
+              for img in $(docker compose config --images 2>/dev/null); do
+                if docker image inspect "${img}-rollback" >/dev/null 2>&1; then
+                  docker tag "${img}-rollback" "$img"
+                fi
+              done
+              docker compose up -d --force-recreate
+              exit 1
+            fi
+      - name: Resolve deployment URL(s)
+        id: resolve_url
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          echo "${{ secrets.REMOTE_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          URLS=$(ssh -i ~/.ssh/deploy_key -p ${{ secrets.REMOTE_SSH_PORT }} \
+            -o StrictHostKeyChecking=no -o ConnectTimeout=30 \
+            ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }} \
+            "cd ${{ env.DOCKER_DIR }} && docker compose config | grep -oE 'Host\(\`[^)]*\`\)' | sed -E 's/Host\(\`//;s/\`\)//' | sort -u" || true)
+          rm -f ~/.ssh/deploy_key
+          # Turn newline-separated domains into a single comma-separated output value
+          URLS_JOINED=$(echo "$URLS" | paste -sd, -)
+          echo "urls=$URLS_JOINED" >> $GITHUB_OUTPUT
+          if [ -z "$URLS" ]; then
+            echo "⚠️ No Traefik Host() rule found in compose config"
+          else
+            echo "✅ Resolved: $URLS_JOINED"
+          fi
+      - name: Smoke test deployed URL(s)
+        id: smoke_test
+        run: |
+          set +e  # don't exit on curl failure — we need to handle it ourselves
+          if [ -z "${{ steps.resolve_url.outputs.urls }}" ]; then
+            echo "⚠️ No domain resolved — skipping smoke test"
+            echo "passed=skipped" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          IFS=',' read -ra DOMAINS <<< "${{ steps.resolve_url.outputs.urls }}"
+          FAILED=""
+          for domain in "${DOMAINS[@]}"; do
+            echo "🔍 Testing https://$domain ..."
+            if curl -f -sS -o /dev/null --max-time 15 "https://$domain"; then
+              echo "  ✅ $domain responded OK"
+            else
+              echo "  ❌ $domain did not respond with 2xx"
+              FAILED="$FAILED $domain"
+            fi
+          done
+          if [ -n "$FAILED" ]; then
+            echo "failed_domains=$FAILED" >> $GITHUB_OUTPUT
+            echo "passed=false" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "passed=true" >> $GITHUB_OUTPUT
+          fi
+      - name: Rollback on smoke test failure
+        if: steps.smoke_test.outputs.passed == 'false'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.REMOTE_SSH_KEY }}
+          port: ${{ secrets.REMOTE_SSH_PORT }}
+          command_timeout: 5m
+          script: |
+            set -euo pipefail
+            cd "${{ env.DOCKER_DIR }}"
+            echo "🔙 Smoke test failed — rolling back to previous images..."
+            for img in $(docker compose config --images 2>/dev/null); do
+              if docker image inspect "${img}-rollback" >/dev/null 2>&1; then
+                docker tag "${img}-rollback" "$img"
+                echo "  reverted $img"
+              else
+                echo "  ⚠️ no rollback image for $img"
+              fi
+            done
+            docker compose up -d --force-recreate
+            echo "✅ Rollback applied"
+      - name: Fail job if smoke test failed
+        if: steps.smoke_test.outputs.passed == 'false'
+        run: |
+          echo "❌ Smoke test failed for:${{ steps.smoke_test.outputs.failed_domains }} — rolled back, failing job"
+          exit 1
+      - name: Write final deployment summary
+        if: always()
+        run: |
+          {
+            echo "## 🚀 staging Deployment Summary"
+            echo ""
+            if [ "${{ job.status }}" = "success" ]; then
+              echo "### ✅ Status: SUCCESS"
+            else
+              echo "### ❌ Status: FAILED"
+            fi
+            echo ""
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| 🌿 Branch | \`${{ github.event.inputs.branch }}\` |"
+            echo "| 🔑 Commit | \`${{ needs.pre-flight.outputs.commit_sha }}\` |"
+            echo "| 👤 Deployed by | ${{ github.actor }} |"
+            echo "| ⏱️ Deployed at | ${{ needs.pre-flight.outputs.deploy_time }} |"
+            echo "| 🔢 Run # | ${{ github.run_number }} |"
+            echo ""
+            echo "### 🌐 Live Domain(s)"
+            echo ""
+            if [ -n "${{ steps.resolve_url.outputs.urls }}" ]; then
+              IFS=',' read -ra DOMAINS <<< "${{ steps.resolve_url.outputs.urls }}"
+              for domain in "${DOMAINS[@]}"; do
+                echo "- 🔗 [$domain](https://$domain)"
+              done
+            else
+              echo "- ⚠️ No domain could be resolved — check Traefik labels in \`docker-compose.yml\`"
+            fi
+            echo ""
+            echo "### 🧪 Smoke Test"
+            echo ""
+            if [ "${{ steps.smoke_test.outputs.passed }}" = "true" ]; then
+              echo "- ✅ All domains responded OK"
+            elif [ "${{ steps.smoke_test.outputs.passed }}" = "skipped" ]; then
+              echo "- ⚠️ Skipped (no domain resolved)"
+            else
+              echo "- ❌ Failed for:${{ steps.smoke_test.outputs.failed_domains }} — rolled back automatically"
+            fi
+          } >> $GITHUB_STEP_SUMMARY
+      - name: Post-deploy cleanup
+        if: always()
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.REMOTE_HOST}}
+          username: ${{ secrets.REMOTE_USER}}
+          key: ${{ secrets.REMOTE_SSH_KEY }}
+          port: ${{ secrets.REMOTE_SSH_PORT }}
+          command_timeout: 5m
+          script: |
+            echo "🧹 Pruning unused Docker resources..."
+            docker image prune -f || true
+            echo "✅ Cleanup done"
+      - name: Send deployment email notification
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ecsiondeveloper@gmail.com
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          from: ecsiondeveloper@gmail.com
+          to: mukul@ecsion.com, yogesh@ecsion.com, devensharmaecsion@gmail.com
+          subject: |
+            ${{ job.status == 'success' && '✅' || '❌' }} staging Deploy ${{ job.status == 'success' && 'Succeeded' || 'Failed' }} — ${{ env.PROJECT_NAME }} (${{ github.event.inputs.branch }})
+          body: |
+            staging deployment ${{ job.status == 'success' && 'succeeded' || 'FAILED' }}.
+            Project      : ${{ env.PROJECT_NAME }}
+            Branch       : ${{ github.event.inputs.branch }}
+            Commit       : ${{ needs.pre-flight.outputs.commit_sha }}
+            Triggered by : ${{ github.actor }}
+            Run #        : ${{ github.run_number }}
+            Time         : ${{ needs.pre-flight.outputs.deploy_time }}
+            Domain(s)    : ${{ steps.resolve_url.outputs.urls }}
+            Smoke test   : ${{ steps.smoke_test.outputs.passed }}
+            Failed URLs  : ${{ steps.smoke_test.outputs.failed_domains }}
+            Run details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

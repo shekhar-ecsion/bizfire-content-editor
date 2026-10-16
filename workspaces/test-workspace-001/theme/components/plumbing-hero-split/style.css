@@ -1,0 +1,4 @@
+/* Scoped Layer 2 styles for plumbing-hero-split */
+.plumbing-service-section { min-height: 374px; display: flex; background: #fff; padding: 0; }
+.plumbing-service-content { background: linear-gradient(to right, #A01922, #7D1118, #390106); color: #fff; }
+.plumbing-service-title { color: #fff; font-family: Outfit, sans-serif; font-size: 38px; font-weight: 700; }

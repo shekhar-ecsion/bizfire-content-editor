@@ -309,7 +309,7 @@ class DataService {
       // 2. Fetch components for this theme
       const compRows = await this.selectRows(
         "theme_components",
-        "row_guid,component_key,name,category,schema_json,template_html,defaults_json,display_order",
+        "row_guid,component_key,name,category,schema_json,template_html,defaults_json,display_order,css",
         [{ Operand: "eq", UIKey: "is_deleted", Value: "false" }],
         [{ UIKey: "display_order", Direction: "ASC" }],
       );
@@ -321,6 +321,26 @@ class DataService {
         [{ Operand: "eq", UIKey: "is_deleted", Value: "false" }],
         [{ UIKey: "display_order", Direction: "ASC" }],
       );
+
+      // 4. Fetch workspace custom CSS overrides (Layer 3) from bizfire_workspace_styles
+      let customCss = "";
+      let customCssRowGuid = null;
+      try {
+        const styleRows = await this.selectRows(
+          "bizfire_workspace_styles",
+          "row_guid,custom_css",
+          [
+            { Operand: "eq", UIKey: "workspace_guid", Value: workspaceId },
+            { Operand: "eq", UIKey: "is_deleted", Value: "false" },
+          ],
+        );
+        if (styleRows && styleRows[0]) {
+          customCss = styleRows[0].custom_css || "";
+          customCssRowGuid = styleRows[0].row_guid;
+        }
+      } catch (styleErr) {
+        console.warn("Could not fetch bizfire_workspace_styles:", styleErr.message);
+      }
 
       return {
         theme: {
@@ -334,6 +354,8 @@ class DataService {
           themeSettings: themeRow.theme_json || {},
         },
         styleCss: themeRow.css || "",
+        customCss,
+        customCssRowGuid,
         components: (compRows || []).map((c) => ({
           id: c.component_key,
           name: c.name,
@@ -342,6 +364,7 @@ class DataService {
           rawSchema: c.schema_json || {},
           template: c.template_html || "",
           defaults: c.defaults_json || {},
+          css: c.css || c.style_css || "",
         })),
         pageTemplates: (variantRows || []).map((v) => ({
           id: v.variant_key,
@@ -1087,6 +1110,65 @@ class DataService {
       };
     } catch (err) {
       console.error("Error saving footer in menus:", err);
+      throw err;
+    }
+  }
+
+  /**
+   * Save workspace global custom CSS to bizfire_workspace_styles table
+   * @param {string} workspaceId
+   * @param {string} customCss
+   * @param {string} [rowGuid]
+   */
+  async saveWorkspaceCustomCss(workspaceId, customCss, rowGuid) {
+    try {
+      const now = new Date().toISOString();
+      const payload = {
+        workspace_guid: workspaceId,
+        custom_css: customCss || "",
+        updated_on: now,
+        is_deleted: false,
+      };
+
+      let targetRowGuid = rowGuid;
+      if (!targetRowGuid) {
+        try {
+          const existing = await this.selectRows(
+            "bizfire_workspace_styles",
+            "row_guid",
+            [
+              { Operand: "eq", UIKey: "workspace_guid", Value: workspaceId },
+              { Operand: "eq", UIKey: "is_deleted", Value: "false" },
+            ],
+          );
+          if (existing && existing[0]?.row_guid) {
+            targetRowGuid = existing[0].row_guid;
+          }
+        } catch (fetchErr) {
+          console.warn("Could not check existing bizfire_workspace_styles row_guid:", fetchErr.message);
+        }
+      }
+
+      if (!targetRowGuid) {
+        targetRowGuid = typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : "c1000000-0000-0000-0000-" + String(workspaceId).slice(-12).padStart(12, "0");
+      }
+      payload.row_guid = targetRowGuid;
+
+      const response = await this.merge([payload], "bizfire_workspace_styles");
+      if (response.data?.status === "error" || response.data?.errorMessage) {
+        throw new Error(response.data.errorMessage || "Failed to merge custom CSS into bizfire_workspace_styles");
+      }
+
+      return {
+        success: true,
+        rowGuid: targetRowGuid,
+        customCss: customCss || "",
+        updatedOn: now,
+      };
+    } catch (err) {
+      console.error("Error saving workspace custom CSS:", err);
       throw err;
     }
   }

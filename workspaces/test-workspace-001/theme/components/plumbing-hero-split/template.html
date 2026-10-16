@@ -1,0 +1,22 @@
+<section class="plumbing-service-section">
+  <div class="container-fluid">
+    <div class="row p-0 align-items-stretch">
+      <div class="col-lg-6 section-hero-main">
+        <div class="plumbing-service-image">
+          <img src="{{image.src}}" alt="{{image.alt}}" width="800" height="900" loading="eager" fetchpriority="high">
+        </div>
+      </div>
+      <div class="col-lg-6 section-hero-main">
+        <div class="plumbing-service-content">
+          <div class="plumbing-service-divider"></div>
+          <div class="plumbing-service-inner">
+            <h2 class="plumbing-service-title">{{{title}}}</h2>
+            {{#if intro}}<p class="plumbing-service-intro">{{intro}}</p>{{/if}}
+            {{#if paragraph1}}<p class="plumbing-service-text">{{paragraph1}}</p>{{/if}}
+            {{#if paragraph2}}<p class="plumbing-service-text">{{paragraph2}}</p>{{/if}}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,41 @@
+{
+  "name": "Process Steps Grid",
+  "category": "Process",
+  "fields": {
+    "title": {
+      "type": "text",
+      "label": "Section Heading",
+      "default": "Three Simple Steps to Reliable Plumbing"
+    },
+    "steps": {
+      "type": "array",
+      "label": "Steps",
+      "itemLabel": "Step",
+      "itemSchema": {
+        "number": {
+          "type": "text",
+          "label": "Step Number",
+          "default": "01"
+        },
+        "title": {
+          "type": "text",
+          "label": "Step Title",
+          "default": "Contact Princeton Air"
+        },
+        "desc": {
+          "type": "textarea",
+          "label": "Step Description",
+          "default": "Reach out by phone or online. Speak directly with a local dispatch coordinator."
+        }
+      }
+    },
+    "image": {
+      "type": "image",
+      "label": "Side Image",
+      "default": {
+        "src": "/assets/img/4-three-simple-steps.webp",
+        "alt": "Three Simple Steps"
+      }
+    }
+  }
+}

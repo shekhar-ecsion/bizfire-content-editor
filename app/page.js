@@ -14,6 +14,7 @@ export default function Home() {
       availableThemes={availableThemes}
       initialTheme={themeData.theme}
       initialThemeCss={themeData.styleCss}
+      initialCustomCss={themeData.customCss || ''}
       initialComponents={themeData.components}
       initialPageTemplates={themeData.pageTemplates}
       initialPage={initialPage}

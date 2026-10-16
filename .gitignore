@@ -11,6 +11,7 @@
 # Production build output
 /build
 /dist
+/temp
 
 # Testing & Coverage
 /coverage

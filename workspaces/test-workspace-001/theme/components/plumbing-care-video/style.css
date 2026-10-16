@@ -1,0 +1,6 @@
+/* Scoped Layer 2 styles for plumbing-care-video */
+.video-card { position: relative; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.12); }
+.video-card-img { width: 100%; height: auto; display: block; object-fit: cover; }
+.play-button-wrapper { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.play-button { width: 72px; height: 72px; border-radius: 50%; background: #A01922; border: none; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(160,25,34,0.4); }
+.play-button svg { width: 28px; height: 28px; fill: #fff; }

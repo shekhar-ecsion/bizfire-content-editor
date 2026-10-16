@@ -48,6 +48,7 @@ function emptyFieldFromSchema(config) {
   if (config.type === 'array' || config.type === 'list') return [];
   if (config.type === 'number') return 0;
   if (config.type === 'boolean') return false;
+  if (config.type === 'select') return config.options?.[0]?.value ?? config.options?.[0] ?? '';
   return '';
 }
 
@@ -184,6 +185,39 @@ function GenericField({ name, config, value, onChange }) {
     );
   }
 
+  if (config.type === 'select') {
+    const options = Array.isArray(config.options) ? config.options : [];
+    return (
+      <label className="editor-field">
+        <span>{config.label || name}{config.required ? ' *' : ''}</span>
+        <select
+          value={value ?? config.default ?? ''}
+          required={!!config.required}
+          onChange={e => onChange(e.target.value)}
+        >
+          {options.map((opt, i) => {
+            const val = typeof opt === 'object' ? opt.value : opt;
+            const label = typeof opt === 'object' ? opt.label : opt;
+            return <option key={i} value={val}>{label}</option>;
+          })}
+        </select>
+      </label>
+    );
+  }
+
+  if (config.type === 'boolean' || config.type === 'checkbox') {
+    return (
+      <label className="editor-field editor-field--checkbox" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: '8px 0' }}>
+        <input
+          type="checkbox"
+          checked={!!value}
+          onChange={e => onChange(e.target.checked)}
+        />
+        <span style={{ fontWeight: 500 }}>{config.label || name}</span>
+      </label>
+    );
+  }
+
   if (config.type === 'array' || config.type === 'list') {
     const rawItems = Array.isArray(value) ? value : [];
     const items = sanitizeArrayItems(rawItems);
@@ -311,6 +345,7 @@ export default function Editor({
   availableThemes = [],
   initialTheme,
   initialThemeCss = '',
+  initialCustomCss = '',
   initialComponents = [],
   initialPageTemplates = [],
   initialVariants = [],
@@ -322,6 +357,7 @@ export default function Editor({
 
   const [theme, setTheme] = useState(initialTheme);
   const [themeCss, setThemeCss] = useState(initialThemeCss);
+  const [customCss, setCustomCss] = useState(initialCustomCss);
   const [components, setComponents] = useState(initialComponents);
   const [pageTemplates, setPageTemplates] = useState(templates);
 
@@ -640,6 +676,22 @@ export default function Editor({
       }
     }).join('\n\n');
 
+    // Deduplicate Layer 2 component styles
+    const usedTypes = new Set();
+    const componentCssList = [];
+    page.forEach(item => {
+      if (!usedTypes.has(item.type)) {
+        usedTypes.add(item.type);
+        const def = library[item.type];
+        const css = def?.css || def?.style_css || '';
+        if (css && css.trim()) {
+          componentCssList.push(`/* ── Component: ${item.type} ── */\n${css.trim()}`);
+        }
+      }
+    });
+
+    const combinedComponentCss = componentCssList.join('\n\n');
+
     const fontLink = theme?.fontUrl
       ? `<link rel="stylesheet" href="${theme.fontUrl}">`
       : `<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
@@ -648,18 +700,31 @@ export default function Editor({
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Service Page - ${theme?.name || 'Bizfire'}</title>
   <meta name="description" content="Clean, fast standalone service page powered by Bizfire Component Engine.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   ${fontLink}
-  <style>
+  <!-- Layer 1: Theme Common Tokens & Typography -->
+  <style id="theme-common-styles">
 ${themeCss}
   </style>
+  ${combinedComponentCss ? `<!-- Layer 2: Scoped Component Styles -->\n  <style id="component-scoped-styles">\n${combinedComponentCss}\n  </style>` : ''}
+  ${customCss && customCss.trim() ? `<!-- Layer 3: Workspace Custom Overrides (Cascades Last) -->\n  <style id="workspace-custom-styles">\n/* ── Workspace Custom Overrides ── */\n${customCss.trim()}\n  </style>` : ''}
 </head>
 <body>
 ${renderedSections}
+  <script src="/assets/js/script.js" defer></script>
+  <script>
+    window.openQuotePopup = window.openQuotePopup || function() {
+      alert("Schedule Service: Call our dispatch team at (123) 456-7890.");
+    };
+    window.openRedeemPopup = window.openRedeemPopup || function() {
+      alert("Special Offer: Coupon has been claimed!");
+    };
+  </script>
 </body>
 </html>`;
   }

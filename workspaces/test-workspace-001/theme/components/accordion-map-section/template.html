@@ -1,0 +1,30 @@
+<section class="nj-section section-padding py-lg-6">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-10 text-center mb-4">
+        <h2 class="nj-heading section-title">{{heading}}</h2>
+      </div>
+    </div>
+    <div class="row align-items-center gx-5">
+      <div class="col-lg-8">
+        <ul class="nj-list" style="list-style:none; padding:0; display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px;">
+          {{#each items}}
+          <li style="background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:16px 20px;">
+            <a href="#" class="nj-list-item" style="display:flex; align-items:center; justify-content:space-between; text-decoration:none; color:#172033; font-weight:600;">
+              <span><span class="nj-number" style="color:#A01922; margin-right:8px;">{{this.number}}</span> {{this.title}}</span>
+              <span style="color:#A01922; font-size:18px;">+</span>
+            </a>
+          </li>
+          {{/each}}
+        </ul>
+      </div>
+      <div class="col-lg-4 text-center">
+        <div class="nj-card" style="background:#172033; color:#fff; padding:32px 24px; border-radius:14px;">
+          <h3 style="color:#fff; font-size:20px; margin-bottom:16px;">Service Area Coverage</h3>
+          <p style="font-size:14px; color:#cbd5e1; margin-bottom:24px;">Proudly serving Mercer, Middlesex, Somerset, and surrounding Central NJ communities.</p>
+          <a href="#locations" onclick="openQuotePopup()" class="btn-filled-chat location-popup" style="background:#A01922; color:#fff; padding:12px 24px; border-radius:30px; display:inline-block; font-weight:700;">{{buttonText}}</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
