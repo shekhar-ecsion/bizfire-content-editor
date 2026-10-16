@@ -43,6 +43,7 @@ export default async function WorkspacePostEditorPage({ params }) {
       pageData={pageData}
       initialTheme={themeBundle.theme}
       initialThemeCss={themeBundle.styleCss}
+      initialCustomCss={themeBundle.customCss || ''}
       initialComponents={themeBundle.components}
       initialVariants={themeBundle.pageTemplates}
     />

@@ -309,6 +309,7 @@ export default function Editor({
   availableThemes = [],
   initialTheme,
   initialThemeCss = '',
+  initialCustomCss = '',
   initialComponents = [],
   initialPageTemplates = [],
   initialVariants = [],
@@ -318,6 +319,7 @@ export default function Editor({
 
   const [theme, setTheme] = useState(initialTheme);
   const [themeCss, setThemeCss] = useState(initialThemeCss);
+  const [customCss, setCustomCss] = useState(initialCustomCss);
   const [components, setComponents] = useState(initialComponents);
   const [pageTemplates, setPageTemplates] = useState(templates);
 
@@ -613,6 +615,22 @@ export default function Editor({
       }
     }).join('\n\n');
 
+    // Deduplicate Layer 2 component styles
+    const usedTypes = new Set();
+    const componentCssList = [];
+    page.forEach(item => {
+      if (!usedTypes.has(item.type)) {
+        usedTypes.add(item.type);
+        const def = library[item.type];
+        const css = def?.css || def?.style_css || '';
+        if (css && css.trim()) {
+          componentCssList.push(`/* ── Component: ${item.type} ── */\n${css.trim()}`);
+        }
+      }
+    });
+
+    const combinedComponentCss = componentCssList.join('\n\n');
+
     const fontLink = theme?.fontUrl
       ? `<link rel="stylesheet" href="${theme.fontUrl}">`
       : `<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
@@ -627,9 +645,12 @@ export default function Editor({
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   ${fontLink}
-  <style>
+  <!-- Layer 1: Theme Common Tokens & Typography -->
+  <style id="theme-common-styles">
 ${themeCss}
   </style>
+  ${combinedComponentCss ? `<!-- Layer 2: Scoped Component Styles -->\n  <style id="component-scoped-styles">\n${combinedComponentCss}\n  </style>` : ''}
+  ${customCss && customCss.trim() ? `<!-- Layer 3: Workspace Custom Overrides (Cascades Last) -->\n  <style id="workspace-custom-styles">\n/* ── Workspace Custom Overrides ── */\n${customCss.trim()}\n  </style>` : ''}
 </head>
 <body>
 ${renderedSections}
